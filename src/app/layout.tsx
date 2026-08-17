@@ -12,16 +12,14 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// 1. إعدادات الميتا واسم التطبيق والـ PWA
 export const metadata: Metadata = {
   title: "Factory Clinic",
   description: "نظام إدارة العيادة والسلامة والصحة المهنية",
   manifest: "/manifest.json",
 };
 
-// 2. إعداد لون شريط الموبايل العلوي (Theme Color)
 export const viewport: Viewport = {
-  themeColor: "#1e293b",
+  themeColor: "#ffffff", // خليناه أبيض عشان النافبار الجديد
 };
 
 export default function RootLayout({
@@ -35,7 +33,10 @@ export default function RootLayout({
       dir="rtl"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      {/* سطر suppressHydrationWarning هو اللي بيحل مشكلة Grammarly */}
+      <body className="min-h-full flex flex-col bg-[#f8fafc]" suppressHydrationWarning>
+        {children}
+      </body>
     </html>
   );
 }
