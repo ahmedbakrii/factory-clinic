@@ -8,10 +8,6 @@ const withPWA = withPWAInit({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // السطر ده هو الحل اللي هيخلي الـ build يعدي من غير اعتراض
-  experimental: {
-    turbopack: undefined, 
-  },
 };
 
 export default withPWA(nextConfig);
