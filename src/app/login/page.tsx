@@ -12,16 +12,13 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // حالة النافذة الخاصة بالزوار
   const [showDemoRoles, setShowDemoRoles] = useState(false);
 
-  // التأكد لو هو مسجل دخول أصلاً يطرده للرئيسية
   useEffect(() => {
     const session = localStorage.getItem("clinic_session");
     if (session) router.push("/");
   }, [router]);
 
-  // تسجيل الدخول الحقيقي
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -30,7 +27,7 @@ export default function LoginPage() {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('*') // هنسحب كل حاجة بما فيها الـ name
+        .select('*')
         .eq('username', username)
         .eq('password', password)
         .single();
@@ -40,11 +37,10 @@ export default function LoginPage() {
         return;
       }
 
-      // حفظ الجلسة للموظف الحقيقي متضمنة اسمه الحقيقي (isDemo = false)
       const sessionData = { 
         id: data.id, 
         username: data.username, 
-        name: data.name || data.username, // لو مفيش اسم نعرض اليوزرنيم
+        name: data.name || data.username,
         role: data.role, 
         isDemo: false 
       };
@@ -58,9 +54,7 @@ export default function LoginPage() {
     }
   };
 
-  // تسجيل دخول الزوار (Demo)
   const handleDemoLogin = (role: string, roleNameAr: string) => {
-    // إعطاء الزائر الجلسة المطلوبة مع تفعيل خاصية (isDemo) واسم الزائر
     const sessionData = { 
       id: "DEMO", 
       username: `demo_user`, 
@@ -77,7 +71,6 @@ export default function LoginPage() {
       
       <div className="w-full max-w-5xl bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px] border border-slate-100 relative">
         
-        {/* الجزء الأيمن: الفورم الحقيقي */}
         <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-center bg-white relative z-10">
           <div className="mb-10 text-center md:text-right">
             <div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center mb-6 mx-auto md:mx-0 shadow-lg shadow-blue-600/30">
@@ -115,7 +108,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* زر دخول الزائر (للتسويق) */}
           <div className="mt-8 pt-8 border-t border-slate-100 text-center">
             <p className="text-sm font-bold text-slate-500 mb-4">هل ترغب في استكشاف النظام؟</p>
             <button type="button" onClick={() => setShowDemoRoles(true)} className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 py-3.5 rounded-2xl font-bold transition-all border border-blue-100 flex justify-center items-center gap-2">
@@ -124,10 +116,8 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* الجزء الأيسر: شكل جمالي (Branding) */}
         <div className="w-full md:w-1/2 bg-slate-900 p-12 flex-col justify-between hidden md:flex relative overflow-hidden">
           <div className="absolute top-0 right-0 w-full h-full opacity-10 pointer-events-none">
-            {/* Pattern/Decoration */}
             <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><defs><pattern id="dots" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse"><circle fill="white" cx="2" cy="2" r="2"></circle></pattern></defs><rect x="0" y="0" width="100%" height="100%" fill="url(#dots)"></rect></svg>
           </div>
           
@@ -142,9 +132,6 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* ========================================== */}
-      {/* Modal: اختيار دور الزائر (التسويقي) */}
-      {/* ========================================== */}
       {showDemoRoles && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-[32px] w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 p-8">
@@ -184,3 +171,4 @@ export default function LoginPage() {
 
     </div>
   );
+}
