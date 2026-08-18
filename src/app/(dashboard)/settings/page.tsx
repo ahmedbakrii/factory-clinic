@@ -20,83 +20,91 @@ export default function SettingsPage() {
     { table: 'body_parts', label: 'أماكن الإصابة', items: [] }
   ]);
 
-    useEffect(() => {
+  useEffect(() => {
     // ⚠️ تجاوز مؤقت (Bypass) لغرض التجربة والبرمجة
-    // سيتم استبداله بنظام تسجيل الدخول الحقيقي لاحقاً
-    const mockSession = { role: 'ADMIN', username: 'Super Admin' };
-    localStorage.setItem("clinic_session", JSON.parse(JSON.stringify(mockSession)));
+    // بيحفظ جلسة أدمن وهمية عشان الصفحة متطردكش
+    const mockSession = { role: 'ADMIN', username: 'Super Admin', id: 'DEMO_ADMIN' };
+    localStorage.setItem("clinic_session", JSON.stringify(mockSession));
     
     setRole('ADMIN');
     fetchSystemData();
   }, [router]);
 
-
-    // لو المستخدم لا يملك صلاحية (ADMIN ولا CLINIC_MANAGER) اطرده فوراً
-    if (session.role !== 'ADMIN' && session.role !== 'CLINIC_MANAGER') {
-      router.push('/');
-      return;
-    }
-
-    setRole(session.role);
-    fetchSystemData();
-  }, [router]);
-
   async function fetchSystemData() {
     setIsLoading(true);
-    // جلب المستخدمين (للأدمن فقط)
-    const { data: userData } = await supabase.from('users').select('*');
-    setUsers(userData || []);
+    try {
+      // جلب المستخدمين (للأدمن فقط)
+      const { data: userData } = await supabase.from('users').select('*');
+      setUsers(userData || []);
 
-    // جلب القوائم
-    const newData = await Promise.all(refData.map(async (d) => {
-      const { data } = await supabase.from(d.table).select('*').order('name');
-      return { ...d, items: data || [] };
-    }));
-    setRefData(newData);
-    setIsLoading(false);
+      // جلب القوائم
+      const newData = await Promise.all(refData.map(async (d) => {
+        const { data } = await supabase.from(d.table).select('*').order('name');
+        return { ...d, items: data || [] };
+      }));
+      setRefData(newData);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   const handleAddItem = async (table: string, name: string) => {
     if (!name) return;
-    await supabase.from(table).insert([{ name }]);
-    fetchSystemData();
+    try {
+      await supabase.from(table).insert([{ name }]);
+      fetchSystemData();
+    } catch (error) {
+      console.error("Error adding item:", error);
+    }
   };
 
   const handleDeleteItem = async (table: string, id: number) => {
     if (confirm("هل أنت متأكد من الحذف؟")) {
+      try {
         await supabase.from(table).delete().eq('id', id);
         fetchSystemData();
+      } catch (error) {
+        console.error("Error deleting item:", error);
+      }
     }
   };
 
   if (isLoading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-blue-600" size={40}/></div>;
 
   return (
-    <div className="p-8 max-w-6xl mx-auto" dir="rtl">
-      <h1 className="text-3xl font-black text-slate-800 mb-8 flex items-center gap-3"><Settings className="text-blue-600"/> إعدادات النظام</h1>
+    <div className="p-4 md:p-8 max-w-6xl mx-auto pb-24" dir="rtl">
+      <h1 className="text-2xl md:text-3xl font-black text-slate-800 mb-8 flex items-center gap-3"><Settings className="text-blue-600"/> إعدادات النظام</h1>
 
-      <div className="flex gap-4 mb-8">
+      <div className="flex gap-4 mb-8 overflow-x-auto pb-2">
         {role === 'ADMIN' && (
-          <button onClick={() => setActiveTab('users')} className={`px-6 py-3 rounded-xl font-bold transition-all ${activeTab === 'users' ? 'bg-blue-600 text-white shadow-lg' : 'bg-white hover:bg-gray-50'}`}>إدارة المستخدمين</button>
+          <button onClick={() => setActiveTab('users')} className={`px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'users' ? 'bg-blue-600 text-white shadow-lg' : 'bg-white hover:bg-gray-50'}`}>إدارة المستخدمين</button>
         )}
-        <button onClick={() => setActiveTab('general')} className={`px-6 py-3 rounded-xl font-bold transition-all ${activeTab === 'general' ? 'bg-blue-600 text-white shadow-lg' : 'bg-white hover:bg-gray-50'}`}>إعدادات العيادة والمصنع</button>
+        <button onClick={() => setActiveTab('general')} className={`px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'general' ? 'bg-blue-600 text-white shadow-lg' : 'bg-white hover:bg-gray-50'}`}>إعدادات العيادة والمصنع</button>
       </div>
 
       {activeTab === 'users' && role === 'ADMIN' && (
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 animate-in fade-in">
           <h2 className="font-bold text-lg mb-4">قائمة المستخدمين وصلاحياتهم</h2>
-          <table className="w-full text-right">
-            <thead><tr className="border-b text-slate-400 text-xs"><th className="pb-3">المستخدم</th><th className="pb-3">الدور</th><th className="pb-3">تحكم</th></tr></thead>
-            <tbody>
-              {users.map(u => (
-                <tr key={u.id} className="border-b last:border-0">
-                  <td className="py-4 font-bold text-slate-800">{u.username}</td>
-                  <td className="py-4 text-sm font-semibold text-blue-600">{u.role}</td>
-                  <td className="py-4"><button className="text-red-500 font-bold text-sm hover:underline">حذف/تعديل</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-right min-w-[400px]">
+              <thead><tr className="border-b text-slate-400 text-xs"><th className="pb-3">المستخدم</th><th className="pb-3">الدور</th><th className="pb-3">تحكم</th></tr></thead>
+              <tbody>
+                {users.length === 0 ? (
+                  <tr><td colSpan={3} className="text-center py-4 text-slate-500 font-bold">لا يوجد مستخدمين بعد.</td></tr>
+                ) : (
+                  users.map(u => (
+                    <tr key={u.id} className="border-b last:border-0 hover:bg-slate-50">
+                      <td className="py-4 px-2 font-bold text-slate-800">{u.username}</td>
+                      <td className="py-4 px-2 text-sm font-semibold text-blue-600">{u.role}</td>
+                      <td className="py-4 px-2"><button className="text-red-500 font-bold text-sm hover:underline">حذف/تعديل</button></td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -111,15 +119,19 @@ export default function SettingsPage() {
                   const input = document.getElementById(`input-${d.table}`) as HTMLInputElement;
                   handleAddItem(d.table, input.value);
                   input.value = '';
-                }} className="bg-emerald-600 text-white px-4 rounded-xl hover:bg-emerald-700 transition-colors"><Plus size={20}/></button>
+                }} className="bg-emerald-600 text-white px-4 rounded-xl hover:bg-emerald-700 transition-colors shrink-0"><Plus size={20}/></button>
               </div>
               <div className="space-y-2 max-h-60 overflow-y-auto">
-                {d.items.map(i => (
-                  <div key={i.id} className="flex justify-between p-3 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors">
-                    <span className="font-semibold text-sm text-slate-700">{i.name}</span>
-                    <button onClick={() => handleDeleteItem(d.table, i.id)} className="text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
-                  </div>
-                ))}
+                {d.items.length === 0 ? (
+                  <p className="text-center text-sm font-bold text-slate-400 py-4">القائمة فارغة</p>
+                ) : (
+                  d.items.map(i => (
+                    <div key={i.id} className="flex justify-between p-3 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors items-center">
+                      <span className="font-semibold text-sm text-slate-700">{i.name}</span>
+                      <button onClick={() => handleDeleteItem(d.table, i.id)} className="text-red-400 hover:text-red-600 p-1"><Trash2 size={16}/></button>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           ))}
