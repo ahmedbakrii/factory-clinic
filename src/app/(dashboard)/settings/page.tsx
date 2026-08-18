@@ -20,14 +20,16 @@ export default function SettingsPage() {
     { table: 'body_parts', label: 'أماكن الإصابة', items: [] }
   ]);
 
-  useEffect(() => {
-    const session = JSON.parse(localStorage.getItem("clinic_session") || "{}");
+    useEffect(() => {
+    // ⚠️ تجاوز مؤقت (Bypass) لغرض التجربة والبرمجة
+    // سيتم استبداله بنظام تسجيل الدخول الحقيقي لاحقاً
+    const mockSession = { role: 'ADMIN', username: 'Super Admin' };
+    localStorage.setItem("clinic_session", JSON.parse(JSON.stringify(mockSession)));
     
-    // ⚠️ التعديل الجوهري هنا: الحماية الصارمة
-    if (!session.role) {
-      router.push("/login");
-      return;
-    }
+    setRole('ADMIN');
+    fetchSystemData();
+  }, [router]);
+
 
     // لو المستخدم لا يملك صلاحية (ADMIN ولا CLINIC_MANAGER) اطرده فوراً
     if (session.role !== 'ADMIN' && session.role !== 'CLINIC_MANAGER') {
