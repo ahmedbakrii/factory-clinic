@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { Settings, Loader2, Trash2, Plus, Users, LayoutDashboard, Shield, FileUp, Database, FileSpreadsheet, Stethoscope, Building2, HardHat, HeartPulse, Activity } from "lucide-react";
+import { Settings, Loader2, Trash2, Plus, Users, Database, FileSpreadsheet, Stethoscope, Building2, HardHat, HeartPulse, Activity } from "lucide-react";
 
 export default function PremiumSettingsPage() {
   const router = useRouter();
@@ -13,7 +13,6 @@ export default function PremiumSettingsPage() {
 
   const [users, setUsers] = useState<any[]>([]);
   
-  // داتا القوائم مع أيقونات فخمة لكل قسم
   const [refData, setRefData] = useState<{ table: string, label: string, icon: any, items: any[] }[]>([
     { table: 'medicines', label: 'صيدلية الأدوية', icon: <Stethoscope size={20}/>, items: [] },
     { table: 'departments', label: 'الأقسام والورش', icon: <Building2 size={20}/>, items: [] },
@@ -22,13 +21,11 @@ export default function PremiumSettingsPage() {
     { table: 'body_parts', label: 'أجزاء الجسم (HSE)', icon: <Activity size={20}/>, items: [] }
   ]);
 
-  // للتحكم في رفع الإكسيل
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTableForUpload, setActiveTableForUpload] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
-    // Bypass مؤقت لحد ما نعمل شاشة الـ Login
     const mockSession = { role: 'ADMIN', username: 'Super Admin', id: 'DEMO_ADMIN' };
     localStorage.setItem("clinic_session", JSON.stringify(mockSession));
     
@@ -67,9 +64,6 @@ export default function PremiumSettingsPage() {
     }
   };
 
-  // ==========================================
-  // نظام الرفع السريع من الإكسيل للقوائم
-  // ==========================================
   const triggerExcelUpload = (table: string) => {
     setActiveTableForUpload(table);
     fileInputRef.current?.click();
@@ -88,11 +82,10 @@ export default function PremiumSettingsPage() {
         const data = new Uint8Array(event.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: "array" });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }); // قراءة كـ مصفوفات
+        const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }); 
         
-        // استخراج أول عمود من الإكسيل (تخطي أول صف لو كان Headings)
         const itemsToInsert = jsonData
-          .slice(1) // تخطي أول صف
+          .slice(1)
           .map((row: any) => row[0]?.toString().trim())
           .filter(name => name && name.length > 0)
           .map(name => ({ name }));
@@ -120,10 +113,8 @@ export default function PremiumSettingsPage() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans" dir="rtl">
-      {/* Input مخفي لرفع ملفات الإكسيل */}
       <input type="file" accept=".xlsx, .xls, .csv" className="hidden" ref={fileInputRef} onChange={handleExcelUpload} />
 
-      {/* الهيدر الفخم */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -138,35 +129,27 @@ export default function PremiumSettingsPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-8 flex flex-col lg:flex-row gap-8">
-        
-        {/* Sidebar Navigation */}
         <div className="w-full lg:w-72 shrink-0">
           <div className="bg-white p-3 rounded-[24px] shadow-sm border border-slate-200 sticky top-32 space-y-2">
             <h3 className="text-xs font-bold text-slate-400 mb-4 px-4 pt-2 uppercase tracking-wider">القوائم الرئيسية</h3>
-            
             <button onClick={() => setActiveTab('general')} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold transition-all ${activeTab === 'general' ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}>
               <Database size={20} className={activeTab === 'general' ? 'text-blue-600' : 'text-slate-400'}/> القواعد الطبية والأقسام
             </button>
-            
             {role === 'ADMIN' && (
               <button onClick={() => setActiveTab('users')} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold transition-all ${activeTab === 'users' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}`}>
-                <Shield size={20} className={activeTab === 'users' ? 'text-blue-400' : 'text-slate-400'}/> إدارة الصلاحيات والوصول
+                <Users size={20} className={activeTab === 'users' ? 'text-blue-400' : 'text-slate-400'}/> إدارة الصلاحيات والوصول
               </button>
             )}
           </div>
         </div>
 
-        {/* Content Area */}
         <div className="flex-1 min-w-0">
-          
-          {/* تبويب المستخدمين */}
           {activeTab === 'users' && role === 'ADMIN' && (
             <div className="bg-white p-8 rounded-[32px] shadow-sm border border-slate-200 animate-in fade-in slide-in-from-bottom-4">
               <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-6">
                 <div><h2 className="font-black text-2xl text-slate-800 flex items-center gap-2"><Users className="text-blue-600"/> إدارة المستخدمين</h2><p className="text-slate-500 font-medium text-sm mt-1">إضافة وحذف وتعديل أدوار العاملين على النظام</p></div>
                 <button className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg flex items-center gap-2"><Plus size={18}/> مستخدم جديد</button>
               </div>
-
               <div className="overflow-hidden rounded-2xl border border-slate-100">
                 <table className="w-full text-right text-sm">
                   <thead className="bg-slate-50 text-slate-500 font-bold"><tr className="border-b border-slate-100"><th className="py-4 px-6">اسم المستخدم</th><th className="py-4 px-6">الدور (Role)</th><th className="py-4 px-6 text-center">إجراءات</th></tr></thead>
@@ -188,41 +171,28 @@ export default function PremiumSettingsPage() {
             </div>
           )}
 
-          {/* تبويب القواعد (أدوية، أقسام...) */}
           {activeTab === 'general' && (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-4">
               {refData.map(d => (
                 <div key={d.table} className="bg-white p-6 rounded-[24px] shadow-sm border border-slate-200 flex flex-col h-[420px]">
-                  
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="font-black text-lg flex items-center gap-2 text-slate-800">
                       <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-600 border border-slate-100">{d.icon}</div>
                       {d.label}
                     </h3>
-                    {/* ⚠️ زرار الإكسيل لرفع مجموعة دفعة واحدة */}
-                    <button 
-                      onClick={() => triggerExcelUpload(d.table)} 
-                      className="text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-lg flex items-center gap-1 transition-colors border border-emerald-100"
-                      title="يجب أن يحتوي الملف على عمود واحد فقط بأسماء العناصر"
-                    >
+                    <button onClick={() => triggerExcelUpload(d.table)} className="text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-lg flex items-center gap-1 transition-colors border border-emerald-100" title="يجب أن يحتوي الملف على عمود واحد فقط بأسماء العناصر">
                       <FileSpreadsheet size={14}/> إكسيل
                     </button>
                   </div>
-
                   <div className="flex gap-2 mb-4 shrink-0">
                     <input id={`input-${d.table}`} className="flex-1 p-3.5 border border-slate-200 rounded-xl bg-slate-50 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-semibold text-sm" placeholder={`إضافة عنصر جديد...`} onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleAddItem(d.table, e.currentTarget.value);
-                        e.currentTarget.value = '';
-                      }
+                      if (e.key === 'Enter') { handleAddItem(d.table, e.currentTarget.value); e.currentTarget.value = ''; }
                     }}/>
                     <button onClick={() => {
                       const input = document.getElementById(`input-${d.table}`) as HTMLInputElement;
-                      handleAddItem(d.table, input.value);
-                      input.value = '';
+                      handleAddItem(d.table, input.value); input.value = '';
                     }} className="bg-slate-900 text-white w-14 rounded-xl hover:bg-blue-600 transition-colors flex items-center justify-center shrink-0 shadow-md"><Plus size={20}/></button>
                   </div>
-
                   <div className="flex-1 overflow-y-auto pr-2 space-y-2 pb-2 custom-scrollbar">
                     {d.items.length === 0 ? (
                       <div className="h-full flex flex-col items-center justify-center text-slate-300 space-y-2">
@@ -241,17 +211,15 @@ export default function PremiumSettingsPage() {
                       ))
                     )}
                   </div>
-
                 </div>
               ))}
             </div>
           )}
-
         </div>
       </div>
       
-      {/* استايل للـ Scrollbar عشان يبقى شيك متناسق مع الفخامة */}
-      <style dangerouslySetContent={{__html: `
+      {/* ⚠️ تم تعديل الكلمة هنا من dangerouslySetContent لـ dangerouslySetInnerHTML */}
+      <style dangerouslySetInnerHTML={{__html: `
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
