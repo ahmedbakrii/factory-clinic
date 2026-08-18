@@ -69,7 +69,7 @@ export default function VisitsPage() {
     try {
       const [vitalsRes, injuriesRes, medsRes, historyRes] = await Promise.all([
         supabase.from('visit_vitals').select('*').eq('visit_id', visit.id).maybeSingle(),
-        supabase.from('work_injuries').select('*').eq('visit_id', visit.id).maybeSingle(),
+        supabase.from('injuries').select('*').eq('visit_id', visit.id).maybeSingle(),
         supabase.from('visit_medications').select('*, medicines(name)').eq('visit_id', visit.id),
         supabase.from('visits').select('id').eq('employee_id', visit.employee_id).order('created_at', { ascending: true })
       ]);

@@ -3,14 +3,8 @@
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
-import { 
-  Activity, HardHat, Send, Clock, ShieldAlert, Loader2, ChevronDown, 
-  Flame, AlertTriangle, HeartPulse, User, CalendarDays, Filter
-} from "lucide-react";
-import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
-} from "recharts";
+import { Activity, HardHat, Send, Clock, ShieldAlert, Loader2, ChevronDown, Flame, AlertTriangle, HeartPulse, User, CalendarDays, Filter } from "lucide-react";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
 const COLORS = ['#3b82f6', '#f59e0b', '#10b981', '#8b5cf6', '#ef4444', '#14b8a6'];
 
@@ -53,14 +47,21 @@ export default function MobileFirstDashboard() {
       else if (timeFilter === "custom") { if (!customStartDate || !customEndDate) { setIsLoading(false); return; } start = new Date(customStartDate); start.setHours(0, 0, 0, 0); end = new Date(customEndDate); end.setHours(23, 59, 59, 999); } 
       else { start = null; end = null; }
 
-      let visitsQuery = supabase.from("visits").select(`id, visit_type, status, created_at, employees (department)`).order("created_at", { ascending: false });
+      // ⚠️ التعديل الجوهري: بنسحب كل حاجة من جدول visits الموحد
+      let visitsQuery = supabase.from("visits").select(`
+        id, visit_type, status, created_at, diagnosis, injury_type, body_part, 
+        employees (name, department)
+      `).order("created_at", { ascending: false });
+
       if (start) visitsQuery = visitsQuery.gte("created_at", start.toISOString());
       if (end) visitsQuery = visitsQuery.lte("created_at", end.toISOString());
       
-      const { data: visitsData } = await visitsQuery;
+      const { data: visitsData, error } = await visitsQuery;
+      if (error) throw error;
+      
       const visits = visitsData || [];
 
-      // 1. حساب الإحصائيات العلوية
+      // 1. الإحصائيات العلوية
       setStats({
         totalVisits: visits.length,
         workInjuries: visits.filter(v => v.visit_type === "Work Injury").length,
@@ -68,29 +69,24 @@ export default function MobileFirstDashboard() {
         transfers: visits.filter(v => v.status === "Transferred").length,
       });
 
-      // 2. تجميع بيانات الدائرة (Pie Chart) - الورش
+      // 2. نسبة التردد للورش (Pie Chart)
       const deptMap: { [key: string]: number } = {};
       visits.forEach(v => { const dept = (v.employees as any)?.department || "عام"; deptMap[dept] = (deptMap[dept] || 0) + 1; });
       setDeptStats(Object.entries(deptMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5));
 
-      // 3. تجميع بيانات الرسم البياني الخطي (Trend Chart)
+      // 3. معدل التردد الزمني (Area Chart)
       const trendMap: { [key: string]: { visits: number, injuries: number } } = {};
-      
-      // تجهيز الأيام (آخر 7 أيام كمثال أو حسب الفلتر)
       visits.forEach(v => {
         const dateStr = new Date(v.created_at).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' });
         if (!trendMap[dateStr]) trendMap[dateStr] = { visits: 0, injuries: 0 };
         trendMap[dateStr].visits += 1;
         if (v.visit_type === "Work Injury" || v.visit_type === "First Aid") trendMap[dateStr].injuries += 1;
       });
-
-      // تحويل الماب لمصفوفة للرسم البياني وعكسها لتكون من الأقدم للأحدث
       const trendArray = Object.entries(trendMap).map(([date, counts]) => ({ date, ...counts })).reverse();
       setTrendData(trendArray);
 
-      // 4. أحدث الزيارات
-      const { data: recentData } = await supabase.from("visits").select(`id, visit_type, diagnosis, status, created_at, employees (name, department)`).order("created_at", { ascending: false }).limit(5);
-      setRecentVisits(recentData || []);
+      // 4. أحدث 5 زيارات
+      setRecentVisits(visits.slice(0, 5));
 
     } catch (error) { console.error("Error:", error); } finally { setIsLoading(false); }
   };
@@ -108,7 +104,6 @@ export default function MobileFirstDashboard() {
   return (
     <div className="min-h-screen bg-[#f1f5f9] pb-24 font-sans selection:bg-blue-100" dir="rtl">
       
-      {/* 1. Header & Filter */}
       <header className="bg-white px-5 py-4 sticky top-0 z-30 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-black text-slate-900 tracking-tight">الداشبورد</h1>
@@ -116,21 +111,14 @@ export default function MobileFirstDashboard() {
         </div>
 
         <div className="relative self-end md:self-auto w-full md:w-auto" ref={filterRef}>
-          <button 
-            type="button"
-            onClick={() => setIsFilterOpen(!isFilterOpen)}
-            className="flex items-center justify-between md:justify-start gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-3.5 md:py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 w-full md:w-auto"
-          >
+          <button type="button" onClick={() => setIsFilterOpen(!isFilterOpen)} className="flex items-center justify-between md:justify-start gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-3.5 md:py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 w-full md:w-auto">
             <span className="flex items-center gap-2"><CalendarDays size={18} className="text-blue-600" /> {filterOptions.find(o => o.id === timeFilter)?.label}</span>
             <ChevronDown size={18} className={`transition-transform duration-300 ${isFilterOpen ? "rotate-180" : ""}`} />
           </button>
           {isFilterOpen && (
             <div className="absolute right-0 md:left-0 top-full mt-2 w-full md:w-56 bg-white border border-slate-100 shadow-2xl rounded-2xl overflow-hidden z-50">
               {filterOptions.map(opt => (
-                <button
-                  type="button" key={opt.id} onClick={() => { setTimeFilter(opt.id as any); setIsFilterOpen(false); }}
-                  className="w-full text-right px-5 py-4 md:py-3 text-sm font-bold transition-colors border-b border-slate-50 hover:bg-slate-50"
-                >{opt.label}</button>
+                <button type="button" key={opt.id} onClick={() => { setTimeFilter(opt.id as any); setIsFilterOpen(false); }} className="w-full text-right px-5 py-4 md:py-3 text-sm font-bold transition-colors border-b border-slate-50 hover:bg-slate-50">{opt.label}</button>
               ))}
             </div>
           )}
@@ -139,18 +127,14 @@ export default function MobileFirstDashboard() {
 
       <main className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
         
-        {/* Custom Date Filter */}
         {timeFilter === "custom" && (
           <div className="bg-white p-5 rounded-[20px] shadow-sm border border-slate-200 flex flex-col md:flex-row gap-4 items-end animate-in fade-in slide-in-from-top-4">
             <div className="w-full md:flex-1"><label className="block text-xs font-bold text-slate-500 mb-2">من تاريخ</label><input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} className="w-full p-3.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 text-sm font-mono" /></div>
             <div className="w-full md:flex-1"><label className="block text-xs font-bold text-slate-500 mb-2">إلى تاريخ</label><input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} className="w-full p-3.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 text-sm font-mono" /></div>
-            <button type="button" onClick={fetchDashboardAnalytics} disabled={!customStartDate || !customEndDate} className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white px-8 py-3.5 rounded-xl font-bold transition-colors disabled:opacity-50 flex items-center justify-center gap-2 active:scale-95">
-              <Filter size={18} /> تطبيق
-            </button>
+            <button type="button" onClick={fetchDashboardAnalytics} disabled={!customStartDate || !customEndDate} className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white px-8 py-3.5 rounded-xl font-bold transition-colors disabled:opacity-50 flex items-center justify-center gap-2 active:scale-95"><Filter size={18} /> تطبيق</button>
           </div>
         )}
         
-        {/* 2. KPI Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5">
           <Link href="/visits" className="bg-gradient-to-br from-blue-600 to-indigo-600 p-4 md:p-5 rounded-[20px] shadow-md active:scale-95 transition-transform flex flex-col justify-between h-32 relative overflow-hidden group">
             <Activity className="absolute -left-2 -top-2 opacity-10 text-white w-24 h-24 transform group-hover:scale-110 transition-transform" />
@@ -158,13 +142,13 @@ export default function MobileFirstDashboard() {
             <div className="flex items-end justify-between"><h3 className="text-4xl font-black text-white">{isLoading ? "..." : stats.totalVisits}</h3></div>
           </Link>
 
-          <Link href="/visits" className="bg-white p-4 md:p-5 rounded-[20px] shadow-sm border border-slate-100 active:scale-95 transition-transform flex flex-col justify-between h-32 relative overflow-hidden group">
+          <Link href="/hse-reports" className="bg-white p-4 md:p-5 rounded-[20px] shadow-sm border border-slate-100 active:scale-95 transition-transform flex flex-col justify-between h-32 relative overflow-hidden group">
             <div className="absolute -left-2 -top-2 opacity-5 text-orange-500"><HardHat size={80} /></div>
             <p className="text-slate-500 font-bold text-sm">إصابات العمل</p>
             <div className="flex items-end justify-between"><h3 className="text-4xl font-black text-orange-600">{isLoading ? "..." : stats.workInjuries}</h3><div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600"><HardHat size={16}/></div></div>
           </Link>
 
-          <Link href="/visits" className="bg-white p-4 md:p-5 rounded-[20px] shadow-sm border border-slate-100 active:scale-95 transition-transform flex flex-col justify-between h-32 relative overflow-hidden group">
+          <Link href="/hse-reports" className="bg-white p-4 md:p-5 rounded-[20px] shadow-sm border border-slate-100 active:scale-95 transition-transform flex flex-col justify-between h-32 relative overflow-hidden group">
             <div className="absolute -left-2 -top-2 opacity-5 text-emerald-500"><ShieldAlert size={80} /></div>
             <p className="text-slate-500 font-bold text-sm">إسعافات أولية</p>
             <div className="flex items-end justify-between"><h3 className="text-4xl font-black text-emerald-600">{isLoading ? "..." : stats.firstAid}</h3><div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600"><ShieldAlert size={16}/></div></div>
@@ -177,10 +161,7 @@ export default function MobileFirstDashboard() {
           </Link>
         </div>
 
-        {/* 3. Charts Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
-          {/* A. Trend Chart (Line/Area) */}
           <div className="bg-white p-5 rounded-[24px] shadow-sm border border-slate-100 lg:col-span-2">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-base font-bold text-slate-800 flex items-center gap-2"><Activity size={18} className="text-blue-500" /> معدل تردد العيادة الزمني</h2>
@@ -194,22 +175,13 @@ export default function MobileFirstDashboard() {
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
-                      <linearGradient id="colorVisits" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="colorInjuries" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
-                      </linearGradient>
+                      <linearGradient id="colorVisits" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient>
+                      <linearGradient id="colorInjuries" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/><stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/></linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#94a3b8'}} dy={10} />
                     <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#94a3b8'}} />
-                    <RechartsTooltip 
-                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontWeight: 'bold' }}
-                      labelStyle={{ color: '#64748b', marginBottom: '4px' }}
-                    />
+                    <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontWeight: 'bold' }} labelStyle={{ color: '#64748b', marginBottom: '4px' }} />
                     <Area type="monotone" name="كل الزيارات" dataKey="visits" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorVisits)" />
                     <Area type="monotone" name="الإصابات" dataKey="injuries" stroke="#f59e0b" strokeWidth={3} fillOpacity={1} fill="url(#colorInjuries)" />
                   </AreaChart>
@@ -218,7 +190,6 @@ export default function MobileFirstDashboard() {
             )}
           </div>
 
-          {/* B. Pie Chart (Workshops) */}
           <div className="bg-white p-5 rounded-[24px] shadow-sm border border-slate-100 flex flex-col">
             <h2 className="text-base font-bold text-slate-800 flex items-center gap-2 mb-2"><Flame size={18} className="text-red-500" /> أكثر الورش تردداً</h2>
             {isLoading ? (
@@ -230,9 +201,7 @@ export default function MobileFirstDashboard() {
                 <ResponsiveContainer width="100%" height={240}>
                   <PieChart>
                     <Pie data={deptStats} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" stroke="none">
-                      {deptStats.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
+                      {deptStats.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                     </Pie>
                     <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontWeight: 'bold' }} />
                     <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}/>
@@ -241,10 +210,8 @@ export default function MobileFirstDashboard() {
               </div>
             )}
           </div>
-
         </div>
 
-        {/* 4. قائمة أحدث الزيارات */}
         <div className="bg-white rounded-[24px] shadow-sm border border-slate-100 overflow-hidden">
           <div className="p-5 border-b border-slate-50 flex justify-between items-center">
             <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2"><Clock size={16} className="text-blue-500" /> أحدث الحالات السجل</h2>

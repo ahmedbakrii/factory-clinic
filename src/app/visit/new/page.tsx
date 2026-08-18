@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Save, User, Activity, FileText, Send, Pill, Loader2, CheckCircle2, Phone, Building2, Search, XCircle, ShieldAlert, StethoscopeIcon, HardHat, HeartPulse } from "lucide-react";
+import { Save, User, Activity, FileText, Send, Pill, Loader2, CheckCircle2, Phone, Building2, Search, XCircle, ShieldAlert, StethoscopeIcon, HardHat, HeartPulse, Plus } from "lucide-react";
 
 const VISIT_TYPES = [
   { id: "Medical Complaint", label: "حالة مرضية", icon: <StethoscopeIcon size={28}/>, color: "blue" },
@@ -36,24 +36,11 @@ function AutocompleteInput({ options, value, onChange, placeholder }: { options:
 
   return (
     <div className="relative w-full" ref={wrapperRef}>
-      <input
-        type="text"
-        className="w-full p-3 border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50/50 text-gray-800 transition-all"
-        placeholder={placeholder}
-        value={inputValue}
-        onChange={(e) => {
-          setInputValue(e.target.value);
-          onChange(e.target.value); 
-          setIsOpen(true);
-        }}
-        onFocus={() => setIsOpen(true)}
-      />
+      <input type="text" className="w-full p-3 border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50/50 text-gray-800 transition-all" placeholder={placeholder} value={inputValue} onChange={(e) => { setInputValue(e.target.value); onChange(e.target.value); setIsOpen(true); }} onFocus={() => setIsOpen(true)} />
       {isOpen && filtered.length > 0 && (
         <div className="absolute z-[999] top-full left-0 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl max-h-56 overflow-y-auto">
           {filtered.map(opt => (
-            <div key={opt.value} className="p-3 hover:bg-blue-50 cursor-pointer text-sm text-gray-800 border-b border-gray-50 last:border-0" onClick={() => { setInputValue(opt.label); onChange(opt.value); setIsOpen(false); }}>
-              {opt.label}
-            </div>
+            <div key={opt.value} className="p-3 hover:bg-blue-50 cursor-pointer text-sm text-gray-800 border-b border-gray-50 last:border-0" onClick={() => { setInputValue(opt.label); onChange(opt.value); setIsOpen(false); }}>{opt.label}</div>
           ))}
         </div>
       )}
@@ -69,9 +56,9 @@ export default function PerfectVisitScreen() {
 
   const [formData, setFormData] = useState({
     iqama: "", name: "", phone: "", nationality: "", age: "", department: "", supervisor: "",
-    temp: "", pulse: "", bp: "", rbs: "",
-    visitType: "", injuryType: "", bodyPart: "", disease: "", recommendation: "", transferred: "Not Transferred",
-    hospital: "", companionName: "", companionPhone: ""
+    temp: "", pulse: "", rbs: "",
+    bp_sys: "", bp_dia: "", // ⚠️ قسمنا الضغط لخانتين (انقباضي / انبساطي)
+    visitType: "", injuryType: "", bodyPart: "", disease: "", recommendation: "", transferred: "Not Transferred", hospital: "", companionName: "", companionPhone: ""
   });
 
   const [medications, setMedications] = useState([{ id: 1, medId: "" }]);
@@ -82,9 +69,7 @@ export default function PerfectVisitScreen() {
   const [dbBodyParts, setDbBodyParts] = useState<any[]>([]);
   const [dbInventoryOptions, setDbInventoryOptions] = useState<any[]>([]);
 
-  useEffect(() => {
-    if (!localStorage.getItem("clinic_session")) router.push("/login");
-  }, [router]);
+  useEffect(() => { if (!localStorage.getItem("clinic_session")) router.push("/login"); }, [router]);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -116,6 +101,25 @@ export default function PerfectVisitScreen() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setFormData({ ...formData, [e.target.name]: e.target.value });
   const updateDropdown = (name: string, value: string) => setFormData({ ...formData, [name]: value });
 
+  // ⚠️ استرجاع دالة تقييم العلامات الحيوية (المؤشر الذكي)
+  const checkVitals = (type: string, val1: string, val2?: string) => {
+    if (!val1) return null;
+    let v1 = parseFloat(val1);
+    
+    switch(type) {
+      case 'temp': return v1 < 36.1 ? <span className="text-blue-600 text-xs font-bold bg-blue-100 px-2 py-0.5 rounded">منخفض</span> : v1 > 37.5 ? <span className="text-red-600 text-xs font-bold bg-red-100 px-2 py-0.5 rounded">مرتفع</span> : <span className="text-green-600 text-xs font-bold bg-green-100 px-2 py-0.5 rounded">طبيعي</span>;
+      case 'pulse': return v1 < 60 ? <span className="text-blue-600 text-xs font-bold bg-blue-100 px-2 py-0.5 rounded">بطيء</span> : v1 > 100 ? <span className="text-red-600 text-xs font-bold bg-red-100 px-2 py-0.5 rounded">سريع</span> : <span className="text-green-600 text-xs font-bold bg-green-100 px-2 py-0.5 rounded">طبيعي</span>;
+      case 'rbs': return v1 < 70 ? <span className="text-blue-600 text-xs font-bold bg-blue-100 px-2 py-0.5 rounded">منخفض</span> : v1 > 140 ? <span className="text-red-600 text-xs font-bold bg-red-100 px-2 py-0.5 rounded">مرتفع</span> : <span className="text-green-600 text-xs font-bold bg-green-100 px-2 py-0.5 rounded">طبيعي</span>;
+      case 'bp': 
+        if (!val2) return null;
+        let sys = v1, dia = parseFloat(val2);
+        if (sys < 90 || dia < 60) return <span className="text-blue-600 text-xs font-bold bg-blue-100 px-2 py-0.5 rounded">منخفض</span>; 
+        if (sys > 130 || dia > 85) return <span className="text-red-600 text-xs font-bold bg-red-100 px-2 py-0.5 rounded">مرتفع</span>; 
+        return <span className="text-green-600 text-xs font-bold bg-green-100 px-2 py-0.5 rounded">طبيعي</span>;
+      default: return null;
+    }
+  };
+
   useEffect(() => {
     const checkIqama = setTimeout(async () => {
       if (formData.iqama.trim() === "") {
@@ -145,41 +149,48 @@ export default function PerfectVisitScreen() {
 
   const handleSave = async () => {
     const session = JSON.parse(localStorage.getItem("clinic_session") || "{}");
-    if (session.id === "DEMO") {
-      alert("👁️ أنت في وضع المشاهدة (Demo Mode). لا يمكنك إدخال زيارات حقيقية بقاعدة البيانات.");
-      return;
-    }
+    if (session.id === "DEMO") return alert("👁️ أنت في وضع المشاهدة (Demo Mode). لا يمكنك إدخال بيانات.");
 
     setIsLoading(true);
     try {
       let currentEmpId = null;
-      if (empStatus === "new") {
-        const { data: newEmp, error: empErr } = await supabase.from("employees").insert([{
-          iqama_number: formData.iqama, name: formData.name, phone: formData.phone, nationality: formData.nationality, department: formData.department, work_place: formData.supervisor
-        }]).select().single();
-        if (empErr) throw empErr;
-        currentEmpId = newEmp.id;
-      } else {
-        const { data: existEmp } = await supabase.from("employees").select("id").eq("iqama_number", formData.iqama).single();
-        currentEmpId = existEmp?.id;
-      }
+
+      // ⚠️ التعديل هنا: Upsert عشان لو الموظف جديد يتسجل صح
+      const { data: empData, error: empErr } = await supabase
+        .from('employees')
+        .upsert({
+            iqama_number: formData.iqama, 
+            name: formData.name || 'غير مسجل', 
+            phone: formData.phone || null, 
+            nationality: formData.nationality || null, 
+            department: formData.department || null, 
+            work_place: formData.supervisor || null
+        }, { onConflict: 'iqama_number' })
+        .select()
+        .single();
+      
+      if (empErr) throw empErr;
+      currentEmpId = empData.id;
+
+      // تجميع الضغط من الخانتين
+      const combinedBP = (formData.bp_sys && formData.bp_dia) ? `${formData.bp_sys}/${formData.bp_dia}` : null;
 
       const { data: newVisit, error: visitErr } = await supabase.from("visits").insert([{
-        employee_id: currentEmpId, visit_type: formData.visitType, complaint: formData.disease, diagnosis: formData.disease, recommendation: formData.recommendation, status: formData.transferred === "Transferred" ? "Transferred" : "Completed"
+        employee_id: currentEmpId, 
+        visit_type: formData.visitType, 
+        complaint: formData.disease, 
+        diagnosis: formData.disease, 
+        recommendation: formData.recommendation, 
+        status: formData.transferred === "Transferred" ? "Transferred" : "Completed",
+        temperature: formData.temp ? parseFloat(formData.temp) : null,
+        pulse: formData.pulse ? parseInt(formData.pulse) : null,
+        blood_pressure: combinedBP,
+        rbs: formData.rbs ? parseInt(formData.rbs) : null,
+        injury_type: formData.injuryType || null,
+        body_part: formData.bodyPart || null
       }]).select().single();
+      
       if (visitErr) throw visitErr;
-
-      if (formData.temp || formData.bp || formData.pulse || formData.rbs) {
-        await supabase.from("visit_vitals").insert([{
-          visit_id: newVisit.id, temperature: formData.temp ? parseFloat(formData.temp) : null, blood_pressure: formData.bp || null, pulse: formData.pulse ? parseInt(formData.pulse) : null, rbs: formData.rbs ? parseInt(formData.rbs) : null
-        }]);
-      }
-
-      if (formData.visitType === "Work Injury" || formData.visitType === "First Aid") {
-        await supabase.from("work_injuries").insert([{
-          visit_id: newVisit.id, employee_id: currentEmpId, injury_type: formData.injuryType, body_part: formData.bodyPart, description: formData.disease
-        }]);
-      }
 
       const validMeds = medications.filter(m => m.medId);
       if (validMeds.length > 0) {
@@ -188,9 +199,7 @@ export default function PerfectVisitScreen() {
       }
 
       if (formData.transferred === "Transferred") {
-        await supabase.from("referrals").insert([{
-          visit_id: newVisit.id, employee_id: currentEmpId, hospital: formData.hospital, notes: `المرافق: ${formData.companionName} | جوال: ${formData.companionPhone}`, status: 'Pending'
-        }]);
+        await supabase.from("referrals").insert([{ visit_id: newVisit.id, employee_id: currentEmpId, hospital: formData.hospital, notes: `المرافق: ${formData.companionName} | جوال: ${formData.companionPhone}`, status: 'Pending' }]);
       }
 
       alert("✅ تم حفظ الزيارة واعتماد البيانات بنجاح!");
@@ -200,7 +209,6 @@ export default function PerfectVisitScreen() {
 
   return (
     <div className="flex flex-col min-h-screen bg-[#f8fafc] font-sans" dir="rtl">
-      {/* النافبار هنا عشان متكونش الصفحة معزولة */}
       <Navbar />
 
       <main className="flex-1 w-full max-w-5xl mx-auto p-4 md:p-6 space-y-6 mt-4 mb-10">
@@ -224,7 +232,7 @@ export default function PerfectVisitScreen() {
           </div>
         </div>
 
-        {/* باقي الفورم */}
+        {/* نوع الزيارة */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
           <h2 className="font-bold text-gray-800 text-lg mb-4 flex items-center gap-2"><ShieldAlert className="text-indigo-600"/> نوع الزيارة *</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -269,14 +277,28 @@ export default function PerfectVisitScreen() {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200">
             <div className="bg-gray-50 rounded-t-2xl border-b border-gray-100 px-6 py-4 flex items-center justify-between"><h2 className="font-bold text-gray-800 text-lg flex items-center gap-2">العلامات الحيوية</h2><Activity size={22} className="text-emerald-500" /></div>
             <div className="p-6 grid grid-cols-2 gap-6 mt-2">
-              <div><div className="flex justify-between items-center mb-2"><label className="text-sm font-semibold text-gray-600">الحرارة</label></div><div className="relative"><input type="number" step="0.1" name="temp" value={formData.temp} onChange={handleInputChange} className="w-full p-3 pl-12 pr-4 border border-gray-200 rounded-xl text-center text-lg bg-gray-50/50" placeholder="37.0" /><span className="absolute left-4 top-3.5 text-gray-400 font-medium text-sm">C°</span></div></div>
-              <div><div className="flex justify-between items-center mb-2"><label className="text-sm font-semibold text-gray-600">النبض</label></div><div className="relative"><input type="number" name="pulse" value={formData.pulse} onChange={handleInputChange} className="w-full p-3 pl-12 pr-4 border border-gray-200 rounded-xl text-center text-lg bg-gray-50/50" placeholder="80" /><span className="absolute left-4 top-3.5 text-gray-400 font-medium text-sm">bpm</span></div></div>
-              <div><div className="flex justify-between items-center mb-2"><label className="text-sm font-semibold text-gray-600">الضغط</label></div><input type="text" name="bp" value={formData.bp} onChange={handleInputChange} className="w-full p-3 border border-gray-200 rounded-xl text-center text-lg bg-gray-50/50" placeholder="120/80" dir="ltr" /></div>
-              <div><div className="flex justify-between items-center mb-2"><label className="text-sm font-semibold text-gray-600">السكر</label></div><div className="relative"><input type="number" name="rbs" value={formData.rbs} onChange={handleInputChange} className="w-full p-3 pl-12 pr-4 border border-gray-200 rounded-xl text-center text-lg bg-gray-50/50" placeholder="100" /><span className="absolute left-4 top-3.5 text-gray-400 font-medium text-sm">mg</span></div></div>
+              <div><div className="flex justify-between items-center mb-2"><label className="text-sm font-semibold text-gray-600">الحرارة</label>{checkVitals('temp', formData.temp)}</div><div className="relative"><input type="number" step="0.1" name="temp" value={formData.temp} onChange={handleInputChange} className="w-full p-3 pl-12 pr-4 border border-gray-200 rounded-xl text-center text-lg bg-gray-50/50" placeholder="37.0" /><span className="absolute left-4 top-3.5 text-gray-400 font-medium text-sm">C°</span></div></div>
+              <div><div className="flex justify-between items-center mb-2"><label className="text-sm font-semibold text-gray-600">النبض</label>{checkVitals('pulse', formData.pulse)}</div><div className="relative"><input type="number" name="pulse" value={formData.pulse} onChange={handleInputChange} className="w-full p-3 pl-12 pr-4 border border-gray-200 rounded-xl text-center text-lg bg-gray-50/50" placeholder="80" /><span className="absolute left-4 top-3.5 text-gray-400 font-medium text-sm">bpm</span></div></div>
+              
+              {/* ⚠️ الضغط مقسوم لخانتين ⚠️ */}
+              <div className="col-span-2 md:col-span-1">
+                <div className="flex justify-between items-center mb-2">
+                  <label className="text-sm font-semibold text-gray-600">الضغط (BP)</label>
+                  {checkVitals('bp', formData.bp_sys, formData.bp_dia)}
+                </div>
+                <div className="flex items-center gap-2 bg-gray-50/50 border border-gray-200 rounded-xl p-1">
+                  <input type="number" name="bp_sys" value={formData.bp_sys} onChange={handleInputChange} className="w-full p-2 bg-transparent outline-none text-center text-lg font-bold" placeholder="120" dir="ltr" />
+                  <span className="text-gray-400 font-bold text-xl">/</span>
+                  <input type="number" name="bp_dia" value={formData.bp_dia} onChange={handleInputChange} className="w-full p-2 bg-transparent outline-none text-center text-lg font-bold" placeholder="80" dir="ltr" />
+                </div>
+              </div>
+              
+              <div className="col-span-2 md:col-span-1"><div className="flex justify-between items-center mb-2"><label className="text-sm font-semibold text-gray-600">السكر</label>{checkVitals('rbs', formData.rbs)}</div><div className="relative"><input type="number" name="rbs" value={formData.rbs} onChange={handleInputChange} className="w-full p-3 pl-12 pr-4 border border-gray-200 rounded-xl text-center text-lg bg-gray-50/50" placeholder="100" /><span className="absolute left-4 top-3.5 text-gray-400 font-medium text-sm">mg</span></div></div>
             </div>
           </div>
         </div>
 
+        {/* التشخيص والتوصية */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200">
           <div className="bg-gray-50 rounded-t-2xl border-b border-gray-100 px-6 py-4 flex items-center justify-between"><h2 className="font-bold text-gray-800 text-lg flex items-center gap-2">التشخيص والتوصية</h2><FileText size={22} className="text-gray-500" /></div>
           <div className="p-6 space-y-6">
@@ -285,6 +307,24 @@ export default function PerfectVisitScreen() {
           </div>
         </div>
 
+        {/* الأدوية المصروفة */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <div className="flex justify-between items-center border-b border-gray-100 pb-4 mb-5">
+            <h2 className="font-bold text-gray-800 text-xl flex items-center gap-2">الأدوية المصروفة <Pill className="text-purple-600" size={24}/></h2>
+            <button onClick={addMedication} className="bg-blue-100 text-blue-700 font-bold hover:bg-blue-200 px-4 py-2 rounded-xl transition-colors flex items-center gap-1"><Plus size={18}/> إضافة دواء</button>
+          </div>
+          <div className="space-y-4">
+            {medications.map((med) => (
+              <div key={med.id} className="flex gap-3 items-center">
+                <div className="flex-1">
+                  <AutocompleteInput options={dbInventoryOptions} value={med.medId} onChange={(val) => updateMedication(med.id, 'medId', val)} placeholder="ابحث عن اسم الدواء..." />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* حالة التحويل */}
         <div className="bg-[#fff9f2] border border-orange-200 rounded-2xl p-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <h3 className="flex items-center gap-2 text-orange-900 font-bold text-lg"><Send size={22} className="text-orange-600" /> حالة التحويل</h3>
@@ -309,7 +349,6 @@ export default function PerfectVisitScreen() {
         </div>
       </main>
 
-      {/* الفوتر عشان الصفحة تتقفل صح */}
       <Footer />
     </div>
   );

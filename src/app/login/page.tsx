@@ -34,7 +34,7 @@ export default function LoginPage() {
         <div className="bg-blue-600 p-4 rounded-2xl text-white inline-block mb-4 shadow-xl shadow-blue-200">
           <HeartPulse size={40} />
         </div>
-        <h1 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tight">Factory Clinic ERP</h1>
+        <h1 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tight">Energya Clinic ERP</h1>
         <p className="text-slate-500 font-bold mt-2">نظام إدارة العيادة والسلامة والصحة المهنية</p>
       </div>
 

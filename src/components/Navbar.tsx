@@ -55,9 +55,9 @@ export default function Navbar() {
       href: "/employees",
     },
     {
-      name: "إصابات (HSE)",
+      name: "الإصـابـات",
       icon: <ShieldAlert size={18} />,
-      href: "/Work_injuries",
+      href: "/injuries",
     },
     {
       name: "التقارير",
@@ -91,7 +91,7 @@ export default function Navbar() {
 
             <div>
               <span className="font-black text-lg md:text-xl text-slate-900 tracking-tight block leading-none">
-                Factory Clinic
+                Energya Clinic
               </span>
 
               <span className="text-[10px] md:text-xs text-slate-500 font-bold">
