@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { Settings, Loader2, Trash2, Plus, Users, Database, FileSpreadsheet, Stethoscope, Building2, HardHat, HeartPulse, Activity } from "lucide-react";
+import { Settings, Loader2, Trash2, Plus, Users, Database, FileSpreadsheet, Stethoscope, Building2, HardHat, HeartPulse, Activity, Globe2, Edit, Ban, CheckCircle, X } from "lucide-react";
 
 export default function PremiumSettingsPage() {
   const router = useRouter();
@@ -18,25 +18,38 @@ export default function PremiumSettingsPage() {
     { table: 'departments', label: 'الأقسام والورش', icon: <Building2 size={20}/>, items: [] },
     { table: 'injury_types', label: 'تصنيفات الإصابات', icon: <HardHat size={20}/>, items: [] },
     { table: 'chronic_diseases', label: 'الأمراض المزمنة', icon: <HeartPulse size={20}/>, items: [] },
-    { table: 'body_parts', label: 'أجزاء الجسم (HSE)', icon: <Activity size={20}/>, items: [] }
+    { table: 'body_parts', label: 'أجزاء الجسم (HSE)', icon: <Activity size={20}/>, items: [] },
+    { table: 'nationalities', label: 'الجنسيات', icon: <Globe2 size={20}/>, items: [] }
   ]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTableForUpload, setActiveTableForUpload] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [userForm, setUserForm] = useState({ name: '', username: '', password: '', role: 'NURSE' });
+
   useEffect(() => {
-    const mockSession = { role: 'ADMIN', username: 'Super Admin', id: 'DEMO_ADMIN' };
-    localStorage.setItem("clinic_session", JSON.stringify(mockSession));
+    const session = JSON.parse(localStorage.getItem("clinic_session") || "{}");
+    if (!session || !session.role) {
+      router.push("/login");
+      return;
+    }
+    if (session.role !== 'ADMIN' && session.role !== 'CLINIC_MANAGER') {
+      router.push('/');
+      return;
+    }
     
-    setRole('ADMIN');
+    setRole(session.role);
     fetchSystemData();
   }, [router]);
 
   async function fetchSystemData() {
     setIsLoading(true);
     try {
-      const { data: userData } = await supabase.from('users').select('*');
+      // ⚠️ التعديل هنا: الترتيب بالاسم لتجنب خطأ قاعدة البيانات ⚠️
+      const { data: userData } = await supabase.from('users').select('*').order('name');
       setUsers(userData || []);
 
       const newData = await Promise.all(refData.map(async (d) => {
@@ -109,10 +122,61 @@ export default function PremiumSettingsPage() {
     }
   };
 
+  const handleSaveUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userForm.username || !userForm.name || !userForm.role) return alert("يرجى إكمال البيانات الأساسية");
+    if (!editingUser && !userForm.password) return alert("كلمة المرور مطلوبة للمستخدم الجديد");
+
+    try {
+      if (editingUser) {
+        const updatePayload: any = { 
+          name: userForm.name, 
+          username: userForm.username, 
+          role: userForm.role 
+        };
+        if (userForm.password) updatePayload.password = userForm.password; 
+        
+        const { error } = await supabase.from('users').update(updatePayload).eq('id', editingUser.id);
+        if (error) throw error;
+        alert("✅ تم تحديث بيانات المستخدم بنجاح");
+      } else {
+        const { error } = await supabase.from('users').insert([userForm]);
+        if (error) throw error;
+        alert("✅ تمت إضافة المستخدم بنجاح");
+      }
+      setShowUserModal(false);
+      setEditingUser(null);
+      setUserForm({ name: '', username: '', password: '', role: 'NURSE' });
+      fetchSystemData();
+    } catch (error: any) {
+      alert("❌ خطأ: " + error.message);
+    }
+  };
+
+  const handleToggleSuspendUser = async (user: any) => {
+    const newRole = user.role === 'SUSPENDED' ? 'NURSE' : 'SUSPENDED';
+    const msg = user.role === 'SUSPENDED' ? 'تنشيط' : 'تعطيل';
+    if (confirm(`هل أنت متأكد من ${msg} حساب ${user.name}؟`)) {
+      try {
+        await supabase.from('users').update({ role: newRole }).eq('id', user.id);
+        fetchSystemData();
+      } catch (error) { console.error(error); }
+    }
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    if (confirm("هل أنت متأكد من الحذف النهائي لهذا المستخدم؟ (هذا الإجراء لا يمكن التراجع عنه)")) {
+      try {
+        await supabase.from('users').delete().eq('id', id);
+        fetchSystemData();
+      } catch (error) { alert("لا يمكن حذف المستخدم لأنه مرتبط بسجلات قديمة. استخدم خاصية (التعطيل) بدلاً من ذلك."); }
+    }
+  };
+
   if (isLoading) return <div className="flex justify-center items-center min-h-screen bg-[#f8fafc]"><Loader2 className="animate-spin text-blue-600" size={50}/></div>;
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] font-sans" dir="rtl">
+    <div className="min-h-screen bg-[#f8fafc] font-sans pb-24" dir="rtl">
       <input type="file" accept=".xlsx, .xls, .csv" className="hidden" ref={fileInputRef} onChange={handleExcelUpload} />
 
       <div className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
@@ -129,6 +193,7 @@ export default function PremiumSettingsPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-8 flex flex-col lg:flex-row gap-8">
+        
         <div className="w-full lg:w-72 shrink-0">
           <div className="bg-white p-3 rounded-[24px] shadow-sm border border-slate-200 sticky top-32 space-y-2">
             <h3 className="text-xs font-bold text-slate-400 mb-4 px-4 pt-2 uppercase tracking-wider">القوائم الرئيسية</h3>
@@ -144,24 +209,39 @@ export default function PremiumSettingsPage() {
         </div>
 
         <div className="flex-1 min-w-0">
+          
           {activeTab === 'users' && role === 'ADMIN' && (
             <div className="bg-white p-8 rounded-[32px] shadow-sm border border-slate-200 animate-in fade-in slide-in-from-bottom-4">
               <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-6">
                 <div><h2 className="font-black text-2xl text-slate-800 flex items-center gap-2"><Users className="text-blue-600"/> إدارة المستخدمين</h2><p className="text-slate-500 font-medium text-sm mt-1">إضافة وحذف وتعديل أدوار العاملين على النظام</p></div>
-                <button className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg flex items-center gap-2"><Plus size={18}/> مستخدم جديد</button>
+                <button onClick={() => { setUserForm({ name: '', username: '', password: '', role: 'NURSE' }); setEditingUser(null); setShowUserModal(true); }} className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg flex items-center gap-2">
+                  <Plus size={18}/> مستخدم جديد
+                </button>
               </div>
-              <div className="overflow-hidden rounded-2xl border border-slate-100">
+
+              <div className="overflow-x-auto">
                 <table className="w-full text-right text-sm">
-                  <thead className="bg-slate-50 text-slate-500 font-bold"><tr className="border-b border-slate-100"><th className="py-4 px-6">اسم المستخدم</th><th className="py-4 px-6">الدور (Role)</th><th className="py-4 px-6 text-center">إجراءات</th></tr></thead>
+                  <thead className="bg-slate-50 text-slate-500 font-bold"><tr className="border-b border-slate-100"><th className="py-4 px-4">الاسم الحقيقي</th><th className="py-4 px-4">اسم الدخول</th><th className="py-4 px-4">الدور (Role)</th><th className="py-4 px-4 text-center">إجراءات التحكم</th></tr></thead>
                   <tbody>
                     {users.length === 0 ? (
-                      <tr><td colSpan={3} className="text-center py-8 text-slate-400 font-bold">لا يوجد مستخدمين مسجلين.</td></tr>
+                      <tr><td colSpan={4} className="text-center py-8 text-slate-400 font-bold">لا يوجد مستخدمين مسجلين.</td></tr>
                     ) : (
                       users.map(u => (
-                        <tr key={u.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                          <td className="py-4 px-6 font-black text-slate-800">{u.username}</td>
-                          <td className="py-4 px-6"><span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-lg font-bold text-xs">{u.role}</span></td>
-                          <td className="py-4 px-6 text-center"><button className="text-red-500 font-bold text-xs bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors">إلغاء الصلاحية</button></td>
+                        <tr key={u.id} className={`border-b border-slate-50 hover:bg-slate-50/50 transition-colors ${u.role === 'SUSPENDED' ? 'opacity-50 bg-slate-50' : ''}`}>
+                          <td className="py-4 px-4 font-black text-slate-800 flex items-center gap-2">{u.name} {u.role === 'SUSPENDED' && <span className="bg-red-100 text-red-600 px-2 py-0.5 rounded text-[10px]">معطل</span>}</td>
+                          <td className="py-4 px-4 font-mono text-slate-500">{u.username}</td>
+                          <td className="py-4 px-4">
+                            <span className={`px-3 py-1 rounded-lg font-bold text-xs ${u.role === 'ADMIN' ? 'bg-blue-100 text-blue-700' : u.role === 'CLINIC_MANAGER' ? 'bg-emerald-100 text-emerald-700' : u.role === 'HSE_MANAGER' ? 'bg-orange-100 text-orange-700' : u.role === 'SUSPENDED' ? 'bg-red-100 text-red-700' : 'bg-purple-100 text-purple-700'}`}>
+                              {u.role}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className="flex items-center justify-center gap-2">
+                              <button onClick={() => { setEditingUser(u); setUserForm({ name: u.name, username: u.username, password: '', role: u.role }); setShowUserModal(true); }} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="تعديل البيانات"><Edit size={16}/></button>
+                              <button onClick={() => handleToggleSuspendUser(u)} className={`p-2 rounded-lg transition-colors ${u.role === 'SUSPENDED' ? 'text-emerald-500 hover:bg-emerald-50' : 'text-orange-500 hover:bg-orange-50'}`} title={u.role === 'SUSPENDED' ? "تنشيط الحساب" : "تعطيل مؤقت"}>{u.role === 'SUSPENDED' ? <CheckCircle size={16}/> : <Ban size={16}/>}</button>
+                              <button onClick={() => handleDeleteUser(u.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="حذف نهائي"><Trash2 size={16}/></button>
+                            </div>
+                          </td>
                         </tr>
                       ))
                     )}
@@ -217,8 +297,49 @@ export default function PremiumSettingsPage() {
           )}
         </div>
       </div>
-      
-      {/* ⚠️ تم تعديل الكلمة هنا من dangerouslySetContent لـ dangerouslySetInnerHTML */}
+
+      {showUserModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                {editingUser ? <Edit className="text-blue-600" size={20}/> : <Plus className="text-emerald-600" size={20}/>} 
+                {editingUser ? 'تعديل بيانات المستخدم' : 'إضافة مستخدم جديد'}
+              </h2>
+              <button type="button" onClick={() => setShowUserModal(false)} className="text-slate-400 hover:text-red-500 bg-white p-2 rounded-xl shadow-sm"><X size={20}/></button>
+            </div>
+            <form onSubmit={handleSaveUser} className="p-6 space-y-5">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">الاسم الحقيقي (يظهر في السيستم)</label>
+                <input type="text" value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} required className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 outline-none focus:border-blue-500" placeholder="مثال: أحمد صلاح" />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">اسم الدخول (Username)</label>
+                <input type="text" value={userForm.username} onChange={e => setUserForm({...userForm, username: e.target.value})} required className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 outline-none focus:border-blue-500 font-mono" placeholder="مثال: ahmed_salah" dir="ltr" />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">كلمة المرور {editingUser && <span className="text-xs text-slate-400 font-normal">(اتركها فارغة إذا لم ترد تغييرها)</span>}</label>
+                <input type="text" value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} required={!editingUser} className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 outline-none focus:border-blue-500 font-mono" placeholder="••••••••" dir="ltr" />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">الدور والصلاحية (Role)</label>
+                <select value={userForm.role} onChange={e => setUserForm({...userForm, role: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 outline-none focus:border-blue-500 font-bold">
+                  <option value="ADMIN">مدير النظام (Admin)</option>
+                  <option value="CLINIC_MANAGER">مدير العيادة (Manager)</option>
+                  <option value="HSE_MANAGER">مدير السلامة (HSE)</option>
+                  <option value="NURSE">ممرض (Nurse)</option>
+                  <option value="SUSPENDED">معطل (Suspended)</option>
+                </select>
+              </div>
+              <div className="pt-4 flex gap-3">
+                <button type="button" onClick={() => setShowUserModal(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl font-bold transition-colors">إلغاء</button>
+                <button type="submit" className="flex-[2] bg-slate-900 hover:bg-slate-800 text-white py-3 rounded-xl font-bold transition-colors shadow-lg">حفظ البيانات</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <style dangerouslySetInnerHTML={{__html: `
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }

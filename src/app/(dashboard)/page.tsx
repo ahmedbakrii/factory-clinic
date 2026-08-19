@@ -106,7 +106,7 @@ export default function MobileFirstDashboard() {
       
       <header className="bg-white px-5 py-4 sticky top-0 z-30 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-black text-slate-900 tracking-tight">الداشبورد</h1>
+          <h1 className="text-xl font-black text-slate-900 tracking-tight">لـوحـة الـتـحـكـم</h1>
           <p className="text-xs text-slate-500 font-medium mt-0.5">مؤشرات الأداء (HSE Analytics)</p>
         </div>
 
@@ -142,13 +142,13 @@ export default function MobileFirstDashboard() {
             <div className="flex items-end justify-between"><h3 className="text-4xl font-black text-white">{isLoading ? "..." : stats.totalVisits}</h3></div>
           </Link>
 
-          <Link href="/hse-reports" className="bg-white p-4 md:p-5 rounded-[20px] shadow-sm border border-slate-100 active:scale-95 transition-transform flex flex-col justify-between h-32 relative overflow-hidden group">
+          <Link href="/injuries" className="bg-white p-4 md:p-5 rounded-[20px] shadow-sm border border-slate-100 active:scale-95 transition-transform flex flex-col justify-between h-32 relative overflow-hidden group">
             <div className="absolute -left-2 -top-2 opacity-5 text-orange-500"><HardHat size={80} /></div>
             <p className="text-slate-500 font-bold text-sm">إصابات العمل</p>
             <div className="flex items-end justify-between"><h3 className="text-4xl font-black text-orange-600">{isLoading ? "..." : stats.workInjuries}</h3><div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600"><HardHat size={16}/></div></div>
           </Link>
 
-          <Link href="/hse-reports" className="bg-white p-4 md:p-5 rounded-[20px] shadow-sm border border-slate-100 active:scale-95 transition-transform flex flex-col justify-between h-32 relative overflow-hidden group">
+          <Link href="/injuries" className="bg-white p-4 md:p-5 rounded-[20px] shadow-sm border border-slate-100 active:scale-95 transition-transform flex flex-col justify-between h-32 relative overflow-hidden group">
             <div className="absolute -left-2 -top-2 opacity-5 text-emerald-500"><ShieldAlert size={80} /></div>
             <p className="text-slate-500 font-bold text-sm">إسعافات أولية</p>
             <div className="flex items-end justify-between"><h3 className="text-4xl font-black text-emerald-600">{isLoading ? "..." : stats.firstAid}</h3><div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600"><ShieldAlert size={16}/></div></div>

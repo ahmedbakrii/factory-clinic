@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "../../../lib/supabase";
+import { supabase } from "@/lib/supabase";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Save, User, Activity, FileText, Send, Pill, Loader2, CheckCircle2, Phone, Building2, Search, XCircle, ShieldAlert, StethoscopeIcon, HardHat, HeartPulse, Plus } from "lucide-react";
@@ -57,7 +57,7 @@ export default function PerfectVisitScreen() {
   const [formData, setFormData] = useState({
     iqama: "", name: "", phone: "", nationality: "", age: "", department: "", supervisor: "",
     temp: "", pulse: "", rbs: "",
-    bp_sys: "", bp_dia: "", // ⚠️ قسمنا الضغط لخانتين (انقباضي / انبساطي)
+    bp_sys: "", bp_dia: "", 
     visitType: "", injuryType: "", bodyPart: "", disease: "", recommendation: "", transferred: "Not Transferred", hospital: "", companionName: "", companionPhone: ""
   });
 
@@ -69,7 +69,19 @@ export default function PerfectVisitScreen() {
   const [dbBodyParts, setDbBodyParts] = useState<any[]>([]);
   const [dbInventoryOptions, setDbInventoryOptions] = useState<any[]>([]);
 
-  useEffect(() => { if (!localStorage.getItem("clinic_session")) router.push("/login"); }, [router]);
+  // ⚠️ التعديل هنا: جدار الحماية وطرد مدير السلامة ⚠️
+  useEffect(() => {
+    const sessionStr = localStorage.getItem("clinic_session");
+    if (!sessionStr) {
+      router.push("/login");
+      return;
+    }
+    
+    const session = JSON.parse(sessionStr);
+    if (session.role === "HSE_MANAGER") {
+      router.push("/visits"); // يطرده لصفحة السجل
+    }
+  }, [router]);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -101,7 +113,6 @@ export default function PerfectVisitScreen() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setFormData({ ...formData, [e.target.name]: e.target.value });
   const updateDropdown = (name: string, value: string) => setFormData({ ...formData, [name]: value });
 
-  // ⚠️ استرجاع دالة تقييم العلامات الحيوية (المؤشر الذكي)
   const checkVitals = (type: string, val1: string, val2?: string) => {
     if (!val1) return null;
     let v1 = parseFloat(val1);
@@ -148,14 +159,16 @@ export default function PerfectVisitScreen() {
   const updateMedication = (id: number, field: string, value: any) => setMedications(medications.map(med => med.id === id ? { ...med, [field]: value } : med));
 
   const handleSave = async () => {
-    const session = JSON.parse(localStorage.getItem("clinic_session") || "{}");
-    if (session.id === "DEMO") return alert("👁️ أنت في وضع المشاهدة (Demo Mode). لا يمكنك إدخال بيانات.");
+    const sessionStr = localStorage.getItem("clinic_session");
+    if (!sessionStr) return;
+    const session = JSON.parse(sessionStr);
+
+    if (session.isDemo) return alert("👁️ أنت في وضع المشاهدة (Demo Mode). لا يمكنك إدخال بيانات.");
 
     setIsLoading(true);
     try {
       let currentEmpId = null;
 
-      // ⚠️ التعديل هنا: Upsert عشان لو الموظف جديد يتسجل صح
       const { data: empData, error: empErr } = await supabase
         .from('employees')
         .upsert({
@@ -172,7 +185,6 @@ export default function PerfectVisitScreen() {
       if (empErr) throw empErr;
       currentEmpId = empData.id;
 
-      // تجميع الضغط من الخانتين
       const combinedBP = (formData.bp_sys && formData.bp_dia) ? `${formData.bp_sys}/${formData.bp_dia}` : null;
 
       const { data: newVisit, error: visitErr } = await supabase.from("visits").insert([{
@@ -280,7 +292,6 @@ export default function PerfectVisitScreen() {
               <div><div className="flex justify-between items-center mb-2"><label className="text-sm font-semibold text-gray-600">الحرارة</label>{checkVitals('temp', formData.temp)}</div><div className="relative"><input type="number" step="0.1" name="temp" value={formData.temp} onChange={handleInputChange} className="w-full p-3 pl-12 pr-4 border border-gray-200 rounded-xl text-center text-lg bg-gray-50/50" placeholder="37.0" /><span className="absolute left-4 top-3.5 text-gray-400 font-medium text-sm">C°</span></div></div>
               <div><div className="flex justify-between items-center mb-2"><label className="text-sm font-semibold text-gray-600">النبض</label>{checkVitals('pulse', formData.pulse)}</div><div className="relative"><input type="number" name="pulse" value={formData.pulse} onChange={handleInputChange} className="w-full p-3 pl-12 pr-4 border border-gray-200 rounded-xl text-center text-lg bg-gray-50/50" placeholder="80" /><span className="absolute left-4 top-3.5 text-gray-400 font-medium text-sm">bpm</span></div></div>
               
-              {/* ⚠️ الضغط مقسوم لخانتين ⚠️ */}
               <div className="col-span-2 md:col-span-1">
                 <div className="flex justify-between items-center mb-2">
                   <label className="text-sm font-semibold text-gray-600">الضغط (BP)</label>

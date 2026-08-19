@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation"; // ⚠️ تم إضافة الاستدعاء هنا
 import { supabase } from "@/lib/supabase";
 import { Search, Building2, Loader2, User, Phone, Fingerprint, Activity, MapPin, Edit, X, Clock, AlertCircle, HeartPulse, Stethoscope, Plus, FileSpreadsheet, Download, FileUp, ChevronDown } from "lucide-react";
 import Link from "next/link";
@@ -62,6 +63,8 @@ function AutocompleteInput({ options, value, onChange, placeholder }: { options:
 }
 
 export default function EmployeesPage() {
+  const router = useRouter(); // ⚠️ تم النقل هنا في أول الدالة
+
   const [employees, setEmployees] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -79,7 +82,7 @@ export default function EmployeesPage() {
   const [editingEmp, setEditingEmp] = useState<any>(null); 
 
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newEmp, setNewEmp] = useState({ iqama_number: '', name: '', phone: '', nationality: '', department: '', work_place: '', is_chronic: false, chronic_disease_notes: '' });
+  const [newEmp, setNewEmp] = useState({ iqama_number: '', name: '', phone: '', nationality: '', age: '', department: '', work_place: '', is_chronic: false, chronic_disease_notes: '' });
 
   const [isExcelMenuOpen, setIsExcelMenuOpen] = useState(false);
   const excelMenuRef = useRef<HTMLDivElement>(null);
@@ -98,8 +101,13 @@ export default function EmployeesPage() {
   }, []);
 
   useEffect(() => {
+    const session = JSON.parse(localStorage.getItem("clinic_session") || "{}");
+    if (session.role === 'HSE_MANAGER' || session.role === 'NURSE') {
+      router.push('/visits');
+      return;
+    }
     fetchData();
-  }, []);
+  }, [router]);
 
   async function fetchData() {
     setIsLoading(true);
@@ -143,16 +151,18 @@ export default function EmployeesPage() {
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     const session = JSON.parse(localStorage.getItem("clinic_session") || "{}");
-    if (session.id === "DEMO") return alert("👁️ وضع المشاهدة مفعل. غير مصرح لك بالإضافة.");
+    if (session.isDemo) return alert("👁️ وضع المشاهدة مفعل. غير مصرح لك بالإضافة.");
     if (!newEmp.iqama_number || !newEmp.name) return alert("الاسم ورقم الإقامة مطلوبين!");
 
     setIsLoading(true);
     try {
-      const { error } = await supabase.from("employees").insert([newEmp]);
+      const payload = { ...newEmp, age: newEmp.age ? parseInt(newEmp.age) : null };
+      const { error } = await supabase.from("employees").insert([payload]);
+      
       if (error) throw error;
       alert("✅ تمت إضافة الموظف بنجاح!");
       setShowAddModal(false);
-      setNewEmp({ iqama_number: '', name: '', phone: '', nationality: '', department: '', work_place: '', is_chronic: false, chronic_disease_notes: '' });
+      setNewEmp({ iqama_number: '', name: '', phone: '', nationality: '', age: '', department: '', work_place: '', is_chronic: false, chronic_disease_notes: '' });
       fetchData();
     } catch (error: any) { alert("❌ خطأ: " + error.message); } finally { setIsLoading(false); }
   };
@@ -160,7 +170,7 @@ export default function EmployeesPage() {
   const handleUpdateEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     const session = JSON.parse(localStorage.getItem("clinic_session") || "{}");
-    if (session.id === "DEMO") {
+    if (session.isDemo) {
       alert("👁️ وضع المشاهدة مفعل. غير مصرح لك بتعديل بيانات الموظفين.");
       setEditingEmp(null);
       return;
@@ -172,6 +182,7 @@ export default function EmployeesPage() {
         phone: editingEmp.phone,
         department: editingEmp.department,
         nationality: editingEmp.nationality,
+        age: editingEmp.age ? parseInt(editingEmp.age) : null,
         work_place: editingEmp.work_place,
         is_chronic: editingEmp.is_chronic,
         chronic_disease_notes: editingEmp.chronic_disease_notes
@@ -186,7 +197,7 @@ export default function EmployeesPage() {
 
   const downloadTemplate = async () => {
     const XLSX = await import("xlsx");
-    const headers = ['Iqama num', 'Name', 'Nationality', 'Phone', 'Department', 'Supervisor'];
+    const headers = ['Iqama num', 'Name', 'Nationality', 'Age', 'Phone', 'Department', 'Supervisor'];
     const ws = XLSX.utils.aoa_to_sheet([headers]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Employees_Template");
@@ -198,7 +209,7 @@ export default function EmployeesPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     const session = JSON.parse(localStorage.getItem("clinic_session") || "{}");
-    if (session.id === "DEMO") return alert("👁️ وضع المشاهدة مفعل. غير مصرح لك بالرفع.");
+    if (session.isDemo) return alert("👁️ وضع المشاهدة مفعل. غير مصرح لك بالرفع.");
 
     setIsExcelMenuOpen(false);
     setIsLoading(true);
@@ -216,6 +227,7 @@ export default function EmployeesPage() {
           name: row['Name'] || row['الاسم'],
           department: row['Work place'] || row['القسم'] || row['Department'],
           nationality: row['Nationality'] || row['الجنسية'],
+          age: parseInt(row['Age'] || row['العمر']) || null, 
           phone: row['Phone'] || row['الجوال'],
         })).filter(e => e.iqama_number && e.iqama_number !== "undefined");
 
@@ -297,7 +309,7 @@ export default function EmployeesPage() {
                 <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center shrink-0"><User size={24} className="text-slate-500" /></div>
                 <div className="flex-1 min-w-0 pt-1">
                   <div className="flex items-center gap-2"><h3 className="font-bold text-slate-800 truncate text-base">{emp.name || 'بدون اسم'}</h3>{emp.is_chronic && <button onClick={(e) => { e.stopPropagation(); setEditingEmp(emp); }} className="text-slate-400 hover:text-blue-600 z-10 relative"><Edit size={14}/></button>}</div>
-                  <p className="text-xs text-slate-500 font-medium truncate">{emp.nationality || 'جنسية غير مسجلة'}</p>
+                  <p className="text-xs text-slate-500 font-medium truncate">{emp.nationality || 'جنسية غير مسجلة'} {emp.age && `• ${emp.age} سنة`}</p>
                 </div>
               </div>
               <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-100 mb-4 flex-1 transition-colors group-hover:bg-blue-50/50">
@@ -322,7 +334,6 @@ export default function EmployeesPage() {
               <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-red-500 bg-gray-100 p-2 rounded-xl"><X size={20}/></button>
             </div>
             
-            {/* ⚠️ التعديل هنا: شيلنا overflow-hidden وضيفنا pb-32 */}
             <div className="p-6 overflow-y-auto pb-32">
               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-5">
                 <div className="grid grid-cols-2 gap-4">
@@ -334,8 +345,11 @@ export default function EmployeesPage() {
                   <div className="col-span-2 md:col-span-1"><label className="block text-center text-sm font-semibold text-gray-600 mb-2">الجنسية</label><AutocompleteInput options={dbNationalities} value={newEmp.nationality} onChange={(val) => setNewEmp({...newEmp, nationality: val})} placeholder="اختر أو اكتب الجنسية..." /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2 md:col-span-1"><label className="block text-center text-sm font-semibold text-gray-600 mb-2">العمر</label><input type="number" value={newEmp.age} onChange={e => setNewEmp({...newEmp, age: e.target.value})} className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-emerald-500 text-center bg-gray-50/50" /></div>
                   <div className="col-span-2 md:col-span-1"><label className="block text-center text-sm font-semibold text-gray-600 mb-2">القسم</label><AutocompleteInput options={dbDepartments} value={newEmp.department} onChange={(val) => setNewEmp({...newEmp, department: val})} placeholder="اختر أو اكتب القسم..." /></div>
-                  <div className="col-span-2 md:col-span-1"><label className="block text-center text-sm font-semibold text-gray-600 mb-2">المشرف</label><input type="text" value={newEmp.work_place} onChange={e => setNewEmp({...newEmp, work_place: e.target.value})} className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-emerald-500 text-center bg-gray-50/50" /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2"><label className="block text-center text-sm font-semibold text-gray-600 mb-2">المشرف</label><input type="text" value={newEmp.work_place} onChange={e => setNewEmp({...newEmp, work_place: e.target.value})} className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-emerald-500 text-center bg-gray-50/50" /></div>
                 </div>
                 
                 <div className="bg-red-50 border border-red-100 rounded-2xl p-6 mt-4">
@@ -373,7 +387,6 @@ export default function EmployeesPage() {
               <button onClick={() => setEditingEmp(null)} className="text-gray-400 hover:text-red-500 bg-gray-100 p-2 rounded-xl"><X size={20}/></button>
             </div>
 
-            {/* ⚠️ التعديل هنا: شيلنا overflow-hidden وضيفنا pb-32 */}
             <div className="p-6 overflow-y-auto pb-32">
               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 mb-6">
                 <div className="border-b border-gray-100 px-6 py-4 flex items-center justify-between"><h2 className="font-bold text-gray-800 text-lg flex items-center gap-2">بيانات العامل (Employee Info)</h2><User size={22} className="text-blue-500" /></div>
@@ -384,11 +397,14 @@ export default function EmployeesPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div><label className="block text-center text-sm font-semibold text-gray-600 mb-2">الجنسية (Nationality)</label><AutocompleteInput options={dbNationalities} value={editingEmp.nationality || ''} onChange={(val) => setEditingEmp({...editingEmp, nationality: val})} placeholder="اختر أو اكتب الجنسية..." /></div>
-                    <div><label className="block text-center text-sm font-semibold text-gray-600 mb-2">رقم الإقامة</label><input type="text" value={editingEmp.iqama_number} disabled className="w-full p-3 border border-gray-200 rounded-xl bg-gray-100 text-center text-gray-500 cursor-not-allowed" /></div>
+                    <div><label className="block text-center text-sm font-semibold text-gray-600 mb-2">العمر (Age)</label><input type="number" value={editingEmp.age || ''} onChange={e => setEditingEmp({...editingEmp, age: e.target.value})} className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-blue-500 text-center bg-gray-50/50" /></div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div><label className="block text-center text-sm font-semibold text-gray-600 mb-2">القسم/المكان (Work place)</label><AutocompleteInput options={dbDepartments} value={editingEmp.department || ''} onChange={(val) => setEditingEmp({...editingEmp, department: val})} placeholder="اختر أو اكتب القسم..." /></div>
-                    <div><label className="block text-center text-sm font-semibold text-gray-600 mb-2">المشرف (Supervisor)</label><input type="text" value={editingEmp.work_place || ''} onChange={e => setEditingEmp({...editingEmp, work_place: e.target.value})} className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-blue-500 text-center bg-gray-50/50" /></div>
+                    <div><label className="block text-center text-sm font-semibold text-gray-600 mb-2">رقم الإقامة</label><input type="text" value={editingEmp.iqama_number} disabled className="w-full p-3 border border-gray-200 rounded-xl bg-gray-100 text-center text-gray-500 cursor-not-allowed" /></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2"><label className="block text-center text-sm font-semibold text-gray-600 mb-2">المشرف (Supervisor)</label><input type="text" value={editingEmp.work_place || ''} onChange={e => setEditingEmp({...editingEmp, work_place: e.target.value})} className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-blue-500 text-center bg-gray-50/50" /></div>
                   </div>
                 </div>
               </div>
