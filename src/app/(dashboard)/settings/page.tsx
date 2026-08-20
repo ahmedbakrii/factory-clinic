@@ -3,7 +3,8 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { Settings, Loader2, Trash2, Plus, Users, Database, FileSpreadsheet, Stethoscope, Building2, HardHat, HeartPulse, Activity, Globe2, Edit, Ban, CheckCircle, X } from "lucide-react";
+import { Settings, Loader2, Trash2, Plus, Users, Database, FileSpreadsheet, Stethoscope, Building2, HardHat, HeartPulse, Activity, Globe2, Edit, Ban, CheckCircle, X, CheckSquare } from "lucide-react";
+import toast from "react-hot-toast";
 
 export default function PremiumSettingsPage() {
   const router = useRouter();
@@ -26,9 +27,14 @@ export default function PremiumSettingsPage() {
   const [activeTableForUpload, setActiveTableForUpload] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
+  // حالات إدارة المستخدمين
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [userForm, setUserForm] = useState({ name: '', username: '', password: '', role: 'NURSE' });
+
+  // حالات إدارة العناصر (تعديل وحذف متعدد)
+  const [selectedItems, setSelectedItems] = useState<Record<string, number[]>>({});
+  const [editingItemInfo, setEditingItemInfo] = useState<{table: string, id: number, name: string} | null>(null);
 
   useEffect(() => {
     const session = JSON.parse(localStorage.getItem("clinic_session") || "{}");
@@ -48,7 +54,6 @@ export default function PremiumSettingsPage() {
   async function fetchSystemData() {
     setIsLoading(true);
     try {
-      // ⚠️ التعديل هنا: الترتيب بالاسم لتجنب خطأ قاعدة البيانات ⚠️
       const { data: userData } = await supabase.from('users').select('*').order('name');
       setUsers(userData || []);
 
@@ -57,26 +62,88 @@ export default function PremiumSettingsPage() {
         return { ...d, items: data || [] };
       }));
       setRefData(newData);
-    } catch (error) { console.error("Error fetching data:", error); } finally { setIsLoading(false); }
+    } catch (error) { 
+      toast.error("حدث خطأ أثناء تحميل البيانات");
+    } finally { 
+      setIsLoading(false); 
+    }
   }
 
+  // ==========================================
+  // دوال إدارة القواعد (إضافة، تعديل، حذف، تحديد)
+  // ==========================================
   const handleAddItem = async (table: string, name: string) => {
     if (!name.trim()) return;
     try {
-      await supabase.from(table).insert([{ name: name.trim() }]);
+      const { error } = await supabase.from(table).insert([{ name: name.trim() }]);
+      if (error) throw error;
+      toast.success("تمت الإضافة بنجاح");
       fetchSystemData();
-    } catch (error) { console.error("Error adding item:", error); }
+    } catch (error) { toast.error("حدث خطأ أو العنصر موجود مسبقاً"); }
+  };
+
+  const handleUpdateItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingItemInfo || !editingItemInfo.name.trim()) return;
+    try {
+      const { error } = await supabase.from(editingItemInfo.table).update({ name: editingItemInfo.name.trim() }).eq('id', editingItemInfo.id);
+      if (error) throw error;
+      toast.success("تم تعديل العنصر بنجاح");
+      setEditingItemInfo(null);
+      fetchSystemData();
+    } catch (error) { toast.error("حدث خطأ أثناء التعديل"); }
   };
 
   const handleDeleteItem = async (table: string, id: number) => {
     if (confirm("هل أنت متأكد من الحذف؟")) {
       try {
-        await supabase.from(table).delete().eq('id', id);
+        const { error } = await supabase.from(table).delete().eq('id', id);
+        if (error) throw error;
+        toast.success("تم الحذف بنجاح");
         fetchSystemData();
-      } catch (error) { console.error("Error deleting item:", error); }
+      } catch (error) { toast.error("لا يمكن الحذف لارتباط العنصر بسجلات أخرى"); }
     }
   };
 
+  // دوال التحديد المتعدد (Bulk Selection)
+  const toggleSelection = (table: string, id: number) => {
+    setSelectedItems(prev => {
+      const tableSelections = prev[table] || [];
+      if (tableSelections.includes(id)) {
+        return { ...prev, [table]: tableSelections.filter(itemId => itemId !== id) };
+      } else {
+        return { ...prev, [table]: [...tableSelections, id] };
+      }
+    });
+  };
+
+  const toggleSelectAll = (table: string, allIds: number[]) => {
+    setSelectedItems(prev => {
+      const tableSelections = prev[table] || [];
+      if (tableSelections.length === allIds.length) {
+        return { ...prev, [table]: [] }; // إلغاء تحديد الكل
+      } else {
+        return { ...prev, [table]: allIds }; // تحديد الكل
+      }
+    });
+  };
+
+  const handleBulkDelete = async (table: string) => {
+    const idsToDelete = selectedItems[table] || [];
+    if (idsToDelete.length === 0) return;
+    
+    if (confirm(`هل أنت متأكد من حذف ${idsToDelete.length} عنصر؟`)) {
+      try {
+        const { error } = await supabase.from(table).delete().in('id', idsToDelete);
+        if (error) throw error;
+        toast.success(`تم حذف ${idsToDelete.length} عنصر بنجاح`);
+        setSelectedItems(prev => ({ ...prev, [table]: [] }));
+        fetchSystemData();
+      } catch (error) { toast.error("لا يمكن حذف بعض العناصر لارتباطها بسجلات سابقة"); }
+    }
+  };
+
+  // دوال الإكسيل
   const triggerExcelUpload = (table: string) => {
     setActiveTableForUpload(table);
     fileInputRef.current?.click();
@@ -106,15 +173,15 @@ export default function PremiumSettingsPage() {
         if (itemsToInsert.length > 0) {
           const { error } = await supabase.from(activeTableForUpload).upsert(itemsToInsert, { onConflict: 'name' });
           if (error) throw error;
-          alert(`✅ تم رفع ${itemsToInsert.length} عنصر بنجاح!`);
+          toast.success(`تم رفع ${itemsToInsert.length} عنصر من الإكسيل بنجاح!`);
           fetchSystemData();
         } else {
-          alert("❌ لم يتم العثور على بيانات صالحة في العمود الأول.");
+          toast.error("لم يتم العثور على بيانات صالحة في الملف");
         }
       };
       reader.readAsArrayBuffer(file);
     } catch (error: any) {
-      alert("❌ حدث خطأ أثناء الرفع: " + error.message);
+      toast.error("حدث خطأ أثناء رفع الملف");
     } finally {
       setIsUploading(false);
       setActiveTableForUpload(null);
@@ -122,10 +189,13 @@ export default function PremiumSettingsPage() {
     }
   };
 
+  // ==========================================
+  // دوال إدارة المستخدمين 
+  // ==========================================
   const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userForm.username || !userForm.name || !userForm.role) return alert("يرجى إكمال البيانات الأساسية");
-    if (!editingUser && !userForm.password) return alert("كلمة المرور مطلوبة للمستخدم الجديد");
+    if (!userForm.username || !userForm.name || !userForm.role) return toast.error("يرجى إكمال البيانات الأساسية");
+    if (!editingUser && !userForm.password) return toast.error("كلمة المرور مطلوبة للمستخدم الجديد");
 
     try {
       if (editingUser) {
@@ -138,18 +208,18 @@ export default function PremiumSettingsPage() {
         
         const { error } = await supabase.from('users').update(updatePayload).eq('id', editingUser.id);
         if (error) throw error;
-        alert("✅ تم تحديث بيانات المستخدم بنجاح");
+        toast.success("تم تحديث بيانات المستخدم بنجاح");
       } else {
         const { error } = await supabase.from('users').insert([userForm]);
         if (error) throw error;
-        alert("✅ تمت إضافة المستخدم بنجاح");
+        toast.success("تمت إضافة المستخدم الجديد بنجاح");
       }
       setShowUserModal(false);
       setEditingUser(null);
       setUserForm({ name: '', username: '', password: '', role: 'NURSE' });
       fetchSystemData();
     } catch (error: any) {
-      alert("❌ خطأ: " + error.message);
+      toast.error("حدث خطأ! (قد يكون اسم الدخول مستخدماً مسبقاً)");
     }
   };
 
@@ -158,20 +228,25 @@ export default function PremiumSettingsPage() {
     const msg = user.role === 'SUSPENDED' ? 'تنشيط' : 'تعطيل';
     if (confirm(`هل أنت متأكد من ${msg} حساب ${user.name}؟`)) {
       try {
-        await supabase.from('users').update({ role: newRole }).eq('id', user.id);
+        const { error } = await supabase.from('users').update({ role: newRole }).eq('id', user.id);
+        if (error) throw error;
+        toast.success(`تم ${msg} الحساب بنجاح`);
         fetchSystemData();
-      } catch (error) { console.error(error); }
+      } catch (error) { toast.error("حدث خطأ أثناء تحديث حالة الحساب"); }
     }
   };
 
   const handleDeleteUser = async (id: string) => {
     if (confirm("هل أنت متأكد من الحذف النهائي لهذا المستخدم؟ (هذا الإجراء لا يمكن التراجع عنه)")) {
       try {
-        await supabase.from('users').delete().eq('id', id);
+        const { error } = await supabase.from('users').delete().eq('id', id);
+        if (error) throw error;
+        toast.success("تم حذف المستخدم نهائياً");
         fetchSystemData();
-      } catch (error) { alert("لا يمكن حذف المستخدم لأنه مرتبط بسجلات قديمة. استخدم خاصية (التعطيل) بدلاً من ذلك."); }
+      } catch (error) { toast.error("لا يمكن الحذف! المستخدم مرتبط بسجلات قديمة. (يُفضل تعطيله)"); }
     }
   };
+
 
   if (isLoading) return <div className="flex justify-center items-center min-h-screen bg-[#f8fafc]"><Loader2 className="animate-spin text-blue-600" size={50}/></div>;
 
@@ -194,6 +269,7 @@ export default function PremiumSettingsPage() {
 
       <div className="max-w-7xl mx-auto px-6 py-8 flex flex-col lg:flex-row gap-8">
         
+        {/* ===================== Sidebar ===================== */}
         <div className="w-full lg:w-72 shrink-0">
           <div className="bg-white p-3 rounded-[24px] shadow-sm border border-slate-200 sticky top-32 space-y-2">
             <h3 className="text-xs font-bold text-slate-400 mb-4 px-4 pt-2 uppercase tracking-wider">القوائم الرئيسية</h3>
@@ -210,11 +286,12 @@ export default function PremiumSettingsPage() {
 
         <div className="flex-1 min-w-0">
           
+          {/* ===================== إدارة المستخدمين ===================== */}
           {activeTab === 'users' && role === 'ADMIN' && (
             <div className="bg-white p-8 rounded-[32px] shadow-sm border border-slate-200 animate-in fade-in slide-in-from-bottom-4">
               <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-6">
                 <div><h2 className="font-black text-2xl text-slate-800 flex items-center gap-2"><Users className="text-blue-600"/> إدارة المستخدمين</h2><p className="text-slate-500 font-medium text-sm mt-1">إضافة وحذف وتعديل أدوار العاملين على النظام</p></div>
-                <button onClick={() => { setUserForm({ name: '', username: '', password: '', role: 'NURSE' }); setEditingUser(null); setShowUserModal(true); }} className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg flex items-center gap-2">
+                <button onClick={() => { setUserForm({ name: '', username: '', password: '', role: 'NURSE' }); setEditingUser(null); setShowUserModal(true); }} className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg flex items-center gap-2 active:scale-95">
                   <Plus size={18}/> مستخدم جديد
                 </button>
               </div>
@@ -251,29 +328,51 @@ export default function PremiumSettingsPage() {
             </div>
           )}
 
+          {/* ===================== القواعد الطبية والأقسام ===================== */}
           {activeTab === 'general' && (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-4">
-              {refData.map(d => (
-                <div key={d.table} className="bg-white p-6 rounded-[24px] shadow-sm border border-slate-200 flex flex-col h-[420px]">
+              {refData.map(d => {
+                const selectedCount = selectedItems[d.table]?.length || 0;
+                const isAllSelected = d.items.length > 0 && selectedCount === d.items.length;
+
+                return (
+                <div key={d.table} className="bg-white p-6 rounded-[24px] shadow-sm border border-slate-200 flex flex-col h-[460px]">
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="font-black text-lg flex items-center gap-2 text-slate-800">
                       <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-600 border border-slate-100">{d.icon}</div>
-                      {d.label}
+                      {d.label} <span className="text-xs bg-slate-100 px-2 py-1 rounded-lg text-slate-500">{d.items.length}</span>
                     </h3>
-                    <button onClick={() => triggerExcelUpload(d.table)} className="text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-lg flex items-center gap-1 transition-colors border border-emerald-100" title="يجب أن يحتوي الملف على عمود واحد فقط بأسماء العناصر">
-                      <FileSpreadsheet size={14}/> إكسيل
-                    </button>
+                    
+                    <div className="flex items-center gap-2">
+                      {selectedCount > 0 && (
+                        <button onClick={() => handleBulkDelete(d.table)} className="text-xs font-bold text-white bg-red-500 hover:bg-red-600 px-3 py-2 rounded-lg flex items-center gap-1 transition-colors shadow-sm animate-in fade-in">
+                          <Trash2 size={14}/> حذف ({selectedCount})
+                        </button>
+                      )}
+                      <button onClick={() => triggerExcelUpload(d.table)} className="text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-lg flex items-center gap-1 transition-colors border border-emerald-100">
+                        <FileSpreadsheet size={14}/> رفع
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex gap-2 mb-4 shrink-0">
-                    <input id={`input-${d.table}`} className="flex-1 p-3.5 border border-slate-200 rounded-xl bg-slate-50 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all font-semibold text-sm" placeholder={`إضافة عنصر جديد...`} onKeyDown={(e) => {
+
+                  <div className="flex gap-2 mb-4 shrink-0 bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
+                    <input id={`input-${d.table}`} className="flex-1 px-4 py-2.5 bg-transparent outline-none font-semibold text-sm" placeholder={`إضافة عنصر جديد...`} onKeyDown={(e) => {
                       if (e.key === 'Enter') { handleAddItem(d.table, e.currentTarget.value); e.currentTarget.value = ''; }
                     }}/>
                     <button onClick={() => {
                       const input = document.getElementById(`input-${d.table}`) as HTMLInputElement;
                       handleAddItem(d.table, input.value); input.value = '';
-                    }} className="bg-slate-900 text-white w-14 rounded-xl hover:bg-blue-600 transition-colors flex items-center justify-center shrink-0 shadow-md"><Plus size={20}/></button>
+                    }} className="bg-blue-600 text-white w-10 h-10 rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center shrink-0 shadow-sm active:scale-95"><Plus size={20}/></button>
                   </div>
-                  <div className="flex-1 overflow-y-auto pr-2 space-y-2 pb-2 custom-scrollbar">
+
+                  {d.items.length > 0 && (
+                    <div className="flex items-center gap-3 px-4 pb-3 border-b border-slate-100 shrink-0">
+                      <input type="checkbox" checked={isAllSelected} onChange={() => toggleSelectAll(d.table, d.items.map(i => i.id))} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer" />
+                      <span className="text-xs font-bold text-slate-500">تحديد الكل</span>
+                    </div>
+                  )}
+
+                  <div className="flex-1 overflow-y-auto pr-2 space-y-2 pb-2 mt-2 custom-scrollbar">
                     {d.items.length === 0 ? (
                       <div className="h-full flex flex-col items-center justify-center text-slate-300 space-y-2">
                         <Database size={32} opacity={0.5}/>
@@ -281,23 +380,30 @@ export default function PremiumSettingsPage() {
                       </div>
                     ) : (
                       d.items.map((i, index) => (
-                        <div key={i.id} className="flex justify-between items-center p-3.5 bg-slate-50/80 rounded-xl hover:bg-slate-100 transition-colors border border-slate-100/50 group">
-                          <div className="flex items-center gap-3">
-                            <span className="text-[10px] font-mono text-slate-400 bg-white w-6 h-6 flex items-center justify-center rounded-md border border-slate-200">{index + 1}</span>
+                        <div key={i.id} className="flex justify-between items-center px-4 py-3 bg-white rounded-xl hover:bg-slate-50 transition-colors border border-slate-100 group">
+                          <label className="flex items-center gap-3 flex-1 cursor-pointer">
+                            <input type="checkbox" checked={selectedItems[d.table]?.includes(i.id) || false} onChange={() => toggleSelection(d.table, i.id)} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer" />
+                            <span className="text-[10px] font-mono text-slate-400 bg-slate-50 w-6 h-6 flex items-center justify-center rounded-md border border-slate-200">{index + 1}</span>
                             <span className="font-bold text-sm text-slate-700">{i.name}</span>
+                          </label>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => setEditingItemInfo({table: d.table, id: i.id, name: i.name})} className="text-slate-400 hover:text-blue-600 bg-white hover:bg-blue-50 w-8 h-8 flex items-center justify-center rounded-lg transition-colors border border-slate-200 hover:border-blue-200"><Edit size={14}/></button>
+                            <button onClick={() => handleDeleteItem(d.table, i.id)} className="text-slate-400 hover:text-red-500 bg-white hover:bg-red-50 w-8 h-8 flex items-center justify-center rounded-lg transition-colors border border-slate-200 hover:border-red-200"><Trash2 size={14}/></button>
                           </div>
-                          <button onClick={() => handleDeleteItem(d.table, i.id)} className="text-slate-400 hover:text-red-500 bg-white hover:bg-red-50 w-8 h-8 flex items-center justify-center rounded-lg transition-colors opacity-0 group-hover:opacity-100 shadow-sm border border-slate-200 hover:border-red-200"><Trash2 size={14}/></button>
                         </div>
                       ))
                     )}
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           )}
         </div>
       </div>
 
+      {/* ========================================== */}
+      {/* نافذة إضافة/تعديل المستخدم */}
+      {/* ========================================== */}
       {showUserModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95">
@@ -333,7 +439,25 @@ export default function PremiumSettingsPage() {
               </div>
               <div className="pt-4 flex gap-3">
                 <button type="button" onClick={() => setShowUserModal(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl font-bold transition-colors">إلغاء</button>
-                <button type="submit" className="flex-[2] bg-slate-900 hover:bg-slate-800 text-white py-3 rounded-xl font-bold transition-colors shadow-lg">حفظ البيانات</button>
+                <button type="submit" className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold transition-colors shadow-lg shadow-blue-600/30">حفظ البيانات</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================== */}
+      {/* نافذة تعديل عنصر في القواعد الطبية (Modal) */}
+      {/* ========================================== */}
+      {editingItemInfo && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 p-6">
+            <h2 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2"><Edit className="text-blue-600" size={20}/> تعديل العنصر</h2>
+            <form onSubmit={handleUpdateItem}>
+              <input type="text" value={editingItemInfo.name} onChange={e => setEditingItemInfo({...editingItemInfo, name: e.target.value})} required className="w-full p-4 border border-slate-200 rounded-xl bg-slate-50 outline-none focus:border-blue-500 font-semibold mb-6 text-center" />
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setEditingItemInfo(null)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl font-bold transition-colors">إلغاء</button>
+                <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold transition-colors shadow-lg">حفظ التعديل</button>
               </div>
             </form>
           </div>
