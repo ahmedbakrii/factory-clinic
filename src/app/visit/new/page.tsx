@@ -6,6 +6,8 @@ import { supabase } from "@/lib/supabase";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Save, User, Activity, FileText, Send, Pill, Loader2, CheckCircle2, Phone, Building2, Search, XCircle, ShieldAlert, StethoscopeIcon, HardHat, HeartPulse, Plus } from "lucide-react";
+// ⚠️ تم استدعاء الإشعارات هنا
+import toast from "react-hot-toast";
 
 const VISIT_TYPES = [
   { id: "Medical Complaint", label: "حالة مرضية", icon: <StethoscopeIcon size={28}/>, color: "blue" },
@@ -69,7 +71,6 @@ export default function PerfectVisitScreen() {
   const [dbBodyParts, setDbBodyParts] = useState<any[]>([]);
   const [dbInventoryOptions, setDbInventoryOptions] = useState<any[]>([]);
 
-  // ⚠️ التعديل هنا: جدار الحماية وطرد مدير السلامة ⚠️
   useEffect(() => {
     const sessionStr = localStorage.getItem("clinic_session");
     if (!sessionStr) {
@@ -79,7 +80,7 @@ export default function PerfectVisitScreen() {
     
     const session = JSON.parse(sessionStr);
     if (session.role === "HSE_MANAGER") {
-      router.push("/visits"); // يطرده لصفحة السجل
+      router.push("/visits"); 
     }
   }, [router]);
 
@@ -163,7 +164,8 @@ export default function PerfectVisitScreen() {
     if (!sessionStr) return;
     const session = JSON.parse(sessionStr);
 
-    if (session.isDemo) return alert("👁️ أنت في وضع المشاهدة (Demo Mode). لا يمكنك إدخال بيانات.");
+    // ⚠️ استبدال الـ alert بـ toast
+    if (session.isDemo) return toast.error("أنت في وضع المشاهدة (Demo). لا يمكنك إدخال بيانات.", { icon: '👁️' });
 
     setIsLoading(true);
     try {
@@ -214,9 +216,15 @@ export default function PerfectVisitScreen() {
         await supabase.from("referrals").insert([{ visit_id: newVisit.id, employee_id: currentEmpId, hospital: formData.hospital, notes: `المرافق: ${formData.companionName} | جوال: ${formData.companionPhone}`, status: 'Pending' }]);
       }
 
-      alert("✅ تم حفظ الزيارة واعتماد البيانات بنجاح!");
+      // ⚠️ استبدال الـ alert بـ toast
+      toast.success("تم حفظ الزيارة واعتماد البيانات بنجاح!");
       router.push('/');
-    } catch (error: any) { alert("❌ حدث خطأ أثناء الحفظ: " + error.message); } finally { setIsLoading(false); }
+    } catch (error: any) { 
+      // ⚠️ استبدال الـ alert بـ toast
+      toast.error("حدث خطأ أثناء الحفظ: " + error.message); 
+    } finally { 
+      setIsLoading(false); 
+    }
   };
 
   return (
