@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Save, User, Activity, FileText, Send, Pill, Loader2, CheckCircle2, Phone, Building2, Search, XCircle, ShieldAlert, StethoscopeIcon, HardHat, HeartPulse, Plus } from "lucide-react";
-// ⚠️ تم استدعاء الإشعارات هنا
+// ⚠️ تم إضافة Camera هنا
+import { Save, User, Activity, FileText, Send, Pill, Loader2, CheckCircle2, Phone, Building2, Search, XCircle, ShieldAlert, StethoscopeIcon, HardHat, HeartPulse, Plus, Camera } from "lucide-react";
 import toast from "react-hot-toast";
 
 const VISIT_TYPES = [
@@ -55,6 +55,10 @@ export default function PerfectVisitScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingEmp, setIsCheckingEmp] = useState(false);
   const [empStatus, setEmpStatus] = useState<"new" | "found" | "idle">("idle");
+
+  // ⚠️ حالات الذكاء الاصطناعي
+  const [isScanning, setIsScanning] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
     iqama: "", name: "", phone: "", nationality: "", age: "", department: "", supervisor: "",
@@ -139,14 +143,24 @@ export default function PerfectVisitScreen() {
         setFormData(prev => ({ ...prev, name: "", phone: "", nationality: "", age: "", department: "", supervisor: "" }));
         return;
       }
+      // البحث لو الإقامة 4 أرقام أو أكثر
       if (formData.iqama.length >= 4) {
         setIsCheckingEmp(true);
         try {
           const { data } = await supabase.from("employees").select("*").or(`iqama_number.eq.${formData.iqama},employee_number.eq.${formData.iqama}`).single();
           if (data) {
-            setFormData(prev => ({ ...prev, name: data.name || "", phone: data.phone || "", nationality: data.nationality || "", department: data.department || "", supervisor: data.work_place || "" }));
+            setFormData(prev => ({ 
+              ...prev, 
+              name: data.name || "", 
+              phone: data.phone || "", 
+              nationality: data.nationality || "", 
+              age: data.age ? String(data.age) : "", // ⚠️ تم إضافة العمر هنا
+              department: data.department || "", 
+              supervisor: data.work_place || "" 
+            }));
             setEmpStatus("found");
           } else {
+            // لا تمسح البيانات لو كانت جاية من الـ AI
             if (empStatus === "found") setFormData(prev => ({ ...prev, name: "", phone: "", nationality: "", age: "", department: "", supervisor: "" }));
             setEmpStatus("new");
           }
@@ -159,12 +173,57 @@ export default function PerfectVisitScreen() {
   const addMedication = () => setMedications([...medications, { id: Date.now(), medId: "" }]);
   const updateMedication = (id: number, field: string, value: any) => setMedications(medications.map(med => med.id === id ? { ...med, [field]: value } : med));
 
+  // =====================================
+  // ⚠️ دالة تصوير الإقامة والذكاء الاصطناعي ⚠️
+  // =====================================
+  const handleIqamaScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsScanning(true);
+    const toastId = toast.loading('جاري مسح الإقامة واستخراج البيانات بالذكاء الاصطناعي...');
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const base64 = event.target?.result;
+        
+        // الاتصال بالـ API اللي هنعمله الخطوة الجاية
+        const res = await fetch('/api/scan-iqama', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64: base64 })
+        });
+
+        const data = await res.json();
+        
+        if (!res.ok) throw new Error(data.error || 'فشل في الاستخراج');
+
+        // تعبئة البيانات المستخرجة تلقائياً
+        setFormData(prev => ({
+          ...prev,
+          iqama: data.iqama_number || prev.iqama,
+          name: data.name || prev.name,
+          nationality: data.nationality || prev.nationality,
+          age: data.age ? String(data.age) : prev.age
+        }));
+
+        toast.success('تم قراءة الهوية بنجاح!', { id: toastId });
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      toast.error('حدث خطأ في قراءة الصورة، يرجى المحاولة مرة أخرى', { id: toastId });
+    } finally {
+      setIsScanning(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
   const handleSave = async () => {
     const sessionStr = localStorage.getItem("clinic_session");
     if (!sessionStr) return;
     const session = JSON.parse(sessionStr);
 
-    // ⚠️ استبدال الـ alert بـ toast
     if (session.isDemo) return toast.error("أنت في وضع المشاهدة (Demo). لا يمكنك إدخال بيانات.", { icon: '👁️' });
 
     setIsLoading(true);
@@ -179,7 +238,8 @@ export default function PerfectVisitScreen() {
             phone: formData.phone || null, 
             nationality: formData.nationality || null, 
             department: formData.department || null, 
-            work_place: formData.supervisor || null
+            work_place: formData.supervisor || null,
+            age: formData.age ? parseInt(formData.age) : null // ⚠️ تم حل مشكلة حفظ العمر في قاعدة البيانات
         }, { onConflict: 'iqama_number' })
         .select()
         .single();
@@ -216,11 +276,9 @@ export default function PerfectVisitScreen() {
         await supabase.from("referrals").insert([{ visit_id: newVisit.id, employee_id: currentEmpId, hospital: formData.hospital, notes: `المرافق: ${formData.companionName} | جوال: ${formData.companionPhone}`, status: 'Pending' }]);
       }
 
-      // ⚠️ استبدال الـ alert بـ toast
       toast.success("تم حفظ الزيارة واعتماد البيانات بنجاح!");
       router.push('/');
     } catch (error: any) { 
-      // ⚠️ استبدال الـ alert بـ toast
       toast.error("حدث خطأ أثناء الحفظ: " + error.message); 
     } finally { 
       setIsLoading(false); 
@@ -236,19 +294,45 @@ export default function PerfectVisitScreen() {
           <div><h1 className="text-2xl font-black text-gray-800">تسجيل زيارة طبية جديدة</h1><p className="text-sm text-gray-500 mt-1">تعبئة نموذج الزيارة والحالة الحيوية</p></div>
         </div>
 
-        {/* مربع الإقامة */}
+        {/* ===================================== */}
+        {/* مربع الإقامة + زر التصوير (المعدل) */}
+        {/* ===================================== */}
         <div className="max-w-xl mx-auto mb-8">
           <div className="relative group">
             <div className={`absolute -inset-1 rounded-2xl blur opacity-25 transition duration-1000 ${empStatus === 'found' ? 'bg-green-400' : empStatus === 'new' ? 'bg-amber-400' : 'bg-blue-400'}`}></div>
             <div className="relative bg-white ring-1 ring-gray-200 rounded-2xl p-2 flex items-center shadow-sm">
               <input type="text" name="iqama" value={formData.iqama} onChange={handleInputChange} className="w-full bg-transparent p-4 outline-none text-2xl font-bold text-center text-gray-800 placeholder-gray-300 tracking-widest" placeholder="أدخل رقم الإقامة..." autoComplete="off" />
+              
+              {/* زر البحث/التحميل */}
               <div className="absolute right-4">{isCheckingEmp ? <Loader2 size={24} className="animate-spin text-blue-500" /> : <Search size={24} className="text-gray-300" />}</div>
+              
+              {/* أيقونة الحالة */}
               <div className="absolute left-4">{empStatus === "found" && <CheckCircle2 size={24} className="text-green-500" />}{empStatus === "new" && <XCircle size={24} className="text-amber-500" />}</div>
+
+              {/* زر الكاميرا السحري للـ AI */}
+              <input 
+                type="file" 
+                accept="image/*" 
+                capture="environment" // يفتح الكاميرا الخلفية تلقائياً في الموبايل
+                className="hidden" 
+                ref={fileInputRef} 
+                onChange={handleIqamaScan} 
+              />
+              <button 
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isScanning}
+                className="absolute right-12 bg-blue-50 text-blue-600 p-2.5 rounded-xl hover:bg-blue-100 transition-colors shadow-sm"
+                title="تصوير الهوية واستخراج البيانات"
+              >
+                <Camera size={20} className={isScanning ? "animate-pulse" : ""} />
+              </button>
             </div>
           </div>
-          <div className="text-center mt-2 h-6">
+          <div className="text-center mt-3 h-6 flex justify-center gap-2">
             {empStatus === "found" && <span className="text-sm font-bold text-green-700 bg-green-100 px-4 py-1 rounded-full">الموظف مسجل مسبقاً بالنظام</span>}
             {empStatus === "new" && <span className="text-sm font-bold text-amber-700 bg-amber-100 px-4 py-1 rounded-full">يتم تسجيل موظف جديد</span>}
+            {isScanning && <span className="text-sm font-bold text-blue-700 bg-blue-100 px-4 py-1 rounded-full animate-pulse">جاري تحليل الإقامة...</span>}
           </div>
         </div>
 
@@ -371,4 +455,4 @@ export default function PerfectVisitScreen() {
       <Footer />
     </div>
   );
-}
+                                                                                                                                                        }
