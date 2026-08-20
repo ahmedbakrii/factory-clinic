@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { Toaster } from "react-hot-toast"; // ⚠️ استدعاء مكتبة الإشعارات
+import { Toaster } from "react-hot-toast"; 
 import "./globals.css";
 
 const geistSans = Geist({
@@ -20,35 +20,44 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#ffffff", // خليناه أبيض عشان النافبار الجديد
+  themeColor: "#ffffff",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html
-      lang="ar"
-      dir="rtl"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      {/* سطر suppressHydrationWarning هو اللي بيحل مشكلة Grammarly */}
+    <html lang="ar" dir="rtl" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-[#f8fafc]" suppressHydrationWarning>
         
-        {/* ⚠️ إضافة المكون ده عشان الإشعارات تظهر فوق في النص بشياكة */}
+        {/* تصميم فاجر للإشعارات (Toasts) */}
         <Toaster 
           position="top-center" 
+          reverseOrder={false}
+          gutter={8}
           toastOptions={{
             duration: 4000,
             style: {
-              background: '#fff',
-              color: '#333',
-              fontWeight: 'bold',
-              borderRadius: '16px',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+              borderRadius: '100px', // شكل بيضاوي شيك
               padding: '16px 24px',
+              fontWeight: '900',
+              fontFamily: 'inherit',
+              direction: 'rtl',
+              boxShadow: '0 20px 40px -10px rgba(0,0,0,0.15)', // ظل فخم
+            },
+            success: {
+              style: {
+                background: '#ecfdf5', // خلفية خضراء فاتحة
+                color: '#065f46',
+                border: '1px solid #34d399',
+              },
+              iconTheme: { primary: '#10b981', secondary: '#fff' },
+            },
+            error: {
+              style: {
+                background: '#fef2f2', // خلفية حمراء فاتحة
+                color: '#991b1b',
+                border: '1px solid #f87171',
+              },
+              iconTheme: { primary: '#ef4444', secondary: '#fff' },
             },
           }} 
         />
