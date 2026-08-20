@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { Settings, Loader2, Trash2, Plus, Users, Database, FileSpreadsheet, Stethoscope, Building2, HardHat, HeartPulse, Activity, Globe2, Edit, Ban, CheckCircle, X, CheckSquare } from "lucide-react";
+import { Settings, Loader2, Trash2, Plus, Users, Database, FileSpreadsheet, Stethoscope, Building2, HardHat, HeartPulse, Activity, Globe2, Edit, Ban, CheckCircle, X, AlertTriangle } from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function PremiumSettingsPage() {
@@ -27,14 +27,17 @@ export default function PremiumSettingsPage() {
   const [activeTableForUpload, setActiveTableForUpload] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
-  // حالات إدارة المستخدمين
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [userForm, setUserForm] = useState({ name: '', username: '', password: '', role: 'NURSE' });
 
-  // حالات إدارة العناصر (تعديل وحذف متعدد)
   const [selectedItems, setSelectedItems] = useState<Record<string, number[]>>({});
   const [editingItemInfo, setEditingItemInfo] = useState<{table: string, id: number, name: string} | null>(null);
+
+  // ⚠️ حالة جديدة للتحكم في نافذة التأكيد الفخمة ⚠️
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean; title: string; message: string; confirmText: string; cancelText: string; danger: boolean; onConfirm: () => void;
+  }>({ isOpen: false, title: '', message: '', confirmText: '', cancelText: '', danger: false, onConfirm: () => {} });
 
   useEffect(() => {
     const session = JSON.parse(localStorage.getItem("clinic_session") || "{}");
@@ -69,9 +72,6 @@ export default function PremiumSettingsPage() {
     }
   }
 
-  // ==========================================
-  // دوال إدارة القواعد (إضافة، تعديل، حذف، تحديد)
-  // ==========================================
   const handleAddItem = async (table: string, name: string) => {
     if (!name.trim()) return;
     try {
@@ -94,18 +94,26 @@ export default function PremiumSettingsPage() {
     } catch (error) { toast.error("حدث خطأ أثناء التعديل"); }
   };
 
-  const handleDeleteItem = async (table: string, id: number) => {
-    if (confirm("هل أنت متأكد من الحذف؟")) {
-      try {
-        const { error } = await supabase.from(table).delete().eq('id', id);
-        if (error) throw error;
-        toast.success("تم الحذف بنجاح");
-        fetchSystemData();
-      } catch (error) { toast.error("لا يمكن الحذف لارتباط العنصر بسجلات أخرى"); }
-    }
+  // ⚠️ التعديل هنا: استخدام النافذة المخصصة بدل confirm البلدي
+  const handleDeleteItem = (table: string, id: number) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: "تأكيد الحذف",
+      message: "هل أنت متأكد من حذف هذا العنصر؟ لا يمكن التراجع عن هذا الإجراء.",
+      confirmText: "نعم، احذف",
+      cancelText: "إلغاء",
+      danger: true,
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase.from(table).delete().eq('id', id);
+          if (error) throw error;
+          toast.success("تم الحذف بنجاح");
+          fetchSystemData();
+        } catch (error) { toast.error("لا يمكن الحذف لارتباط العنصر بسجلات أخرى"); }
+      }
+    });
   };
 
-  // دوال التحديد المتعدد (Bulk Selection)
   const toggleSelection = (table: string, id: number) => {
     setSelectedItems(prev => {
       const tableSelections = prev[table] || [];
@@ -121,29 +129,37 @@ export default function PremiumSettingsPage() {
     setSelectedItems(prev => {
       const tableSelections = prev[table] || [];
       if (tableSelections.length === allIds.length) {
-        return { ...prev, [table]: [] }; // إلغاء تحديد الكل
+        return { ...prev, [table]: [] }; 
       } else {
-        return { ...prev, [table]: allIds }; // تحديد الكل
+        return { ...prev, [table]: allIds }; 
       }
     });
   };
 
-  const handleBulkDelete = async (table: string) => {
+  // ⚠️ التعديل هنا لـ نافذة مخصصة
+  const handleBulkDelete = (table: string) => {
     const idsToDelete = selectedItems[table] || [];
     if (idsToDelete.length === 0) return;
     
-    if (confirm(`هل أنت متأكد من حذف ${idsToDelete.length} عنصر؟`)) {
-      try {
-        const { error } = await supabase.from(table).delete().in('id', idsToDelete);
-        if (error) throw error;
-        toast.success(`تم حذف ${idsToDelete.length} عنصر بنجاح`);
-        setSelectedItems(prev => ({ ...prev, [table]: [] }));
-        fetchSystemData();
-      } catch (error) { toast.error("لا يمكن حذف بعض العناصر لارتباطها بسجلات سابقة"); }
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: "حذف متعدد",
+      message: `هل أنت متأكد من حذف ${idsToDelete.length} عنصر دفعة واحدة؟`,
+      confirmText: "حذف الكل",
+      cancelText: "تراجع",
+      danger: true,
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase.from(table).delete().in('id', idsToDelete);
+          if (error) throw error;
+          toast.success(`تم حذف ${idsToDelete.length} عنصر بنجاح`);
+          setSelectedItems(prev => ({ ...prev, [table]: [] }));
+          fetchSystemData();
+        } catch (error) { toast.error("لا يمكن حذف بعض العناصر لارتباطها بسجلات سابقة"); }
+      }
+    });
   };
 
-  // دوال الإكسيل
   const triggerExcelUpload = (table: string) => {
     setActiveTableForUpload(table);
     fileInputRef.current?.click();
@@ -189,9 +205,6 @@ export default function PremiumSettingsPage() {
     }
   };
 
-  // ==========================================
-  // دوال إدارة المستخدمين 
-  // ==========================================
   const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userForm.username || !userForm.name || !userForm.role) return toast.error("يرجى إكمال البيانات الأساسية");
@@ -223,30 +236,48 @@ export default function PremiumSettingsPage() {
     }
   };
 
-  const handleToggleSuspendUser = async (user: any) => {
+  // ⚠️ التعديل هنا لـ نافذة مخصصة
+  const handleToggleSuspendUser = (user: any) => {
     const newRole = user.role === 'SUSPENDED' ? 'NURSE' : 'SUSPENDED';
     const msg = user.role === 'SUSPENDED' ? 'تنشيط' : 'تعطيل';
-    if (confirm(`هل أنت متأكد من ${msg} حساب ${user.name}؟`)) {
-      try {
-        const { error } = await supabase.from('users').update({ role: newRole }).eq('id', user.id);
-        if (error) throw error;
-        toast.success(`تم ${msg} الحساب بنجاح`);
-        fetchSystemData();
-      } catch (error) { toast.error("حدث خطأ أثناء تحديث حالة الحساب"); }
-    }
+    
+    setConfirmDialog({
+      isOpen: true,
+      title: `تأكيد ${msg} الحساب`,
+      message: `هل أنت متأكد من ${msg} حساب المستخدم "${user.name}"؟`,
+      confirmText: `نعم، ${msg}`,
+      cancelText: "إلغاء",
+      danger: newRole === 'SUSPENDED',
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase.from('users').update({ role: newRole }).eq('id', user.id);
+          if (error) throw error;
+          toast.success(`تم ${msg} الحساب بنجاح`);
+          fetchSystemData();
+        } catch (error) { toast.error("حدث خطأ أثناء تحديث حالة الحساب"); }
+      }
+    });
   };
 
-  const handleDeleteUser = async (id: string) => {
-    if (confirm("هل أنت متأكد من الحذف النهائي لهذا المستخدم؟ (هذا الإجراء لا يمكن التراجع عنه)")) {
-      try {
-        const { error } = await supabase.from('users').delete().eq('id', id);
-        if (error) throw error;
-        toast.success("تم حذف المستخدم نهائياً");
-        fetchSystemData();
-      } catch (error) { toast.error("لا يمكن الحذف! المستخدم مرتبط بسجلات قديمة. (يُفضل تعطيله)"); }
-    }
+  // ⚠️ التعديل هنا لـ نافذة مخصصة
+  const handleDeleteUser = (id: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: "حذف مستخدم نهائياً",
+      message: "هل أنت متأكد من الحذف النهائي لهذا المستخدم؟ (هذا الإجراء لا يمكن التراجع عنه)",
+      confirmText: "نعم، حذف نهائي",
+      cancelText: "تراجع",
+      danger: true,
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase.from('users').delete().eq('id', id);
+          if (error) throw error;
+          toast.success("تم حذف المستخدم نهائياً");
+          fetchSystemData();
+        } catch (error) { toast.error("لا يمكن الحذف! المستخدم مرتبط بسجلات قديمة. (يُفضل تعطيله)"); }
+      }
+    });
   };
-
 
   if (isLoading) return <div className="flex justify-center items-center min-h-screen bg-[#f8fafc]"><Loader2 className="animate-spin text-blue-600" size={50}/></div>;
 
@@ -460,6 +491,39 @@ export default function PremiumSettingsPage() {
                 <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold transition-colors shadow-lg">حفظ التعديل</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================== */}
+      {/* ⚠️ النافذة الفخمة للتأكيد (Custom Confirm Modal) ⚠️ */}
+      {/* ========================================== */}
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-[24px] w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 p-6 text-center">
+            <div className={`mx-auto w-16 h-16 mb-4 rounded-full flex items-center justify-center ${confirmDialog.danger ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+              <AlertTriangle size={32} />
+            </div>
+            <h2 className="text-xl font-black text-slate-800 mb-2">{confirmDialog.title}</h2>
+            <p className="text-sm font-bold text-slate-500 mb-8 leading-relaxed">{confirmDialog.message}</p>
+            
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))} 
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3.5 rounded-xl font-bold transition-colors"
+              >
+                {confirmDialog.cancelText}
+              </button>
+              <button 
+                onClick={() => {
+                  confirmDialog.onConfirm();
+                  setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                }} 
+                className={`flex-1 text-white py-3.5 rounded-xl font-bold transition-colors shadow-lg ${confirmDialog.danger ? 'bg-red-600 hover:bg-red-700 shadow-red-600/30' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/30'}`}
+              >
+                {confirmDialog.confirmText}
+              </button>
+            </div>
           </div>
         </div>
       )}
