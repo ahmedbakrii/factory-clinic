@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-// ⚠️ تم إضافة Camera هنا
 import { Save, User, Activity, FileText, Send, Pill, Loader2, CheckCircle2, Phone, Building2, Search, XCircle, ShieldAlert, StethoscopeIcon, HardHat, HeartPulse, Plus, Camera } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -56,7 +55,6 @@ export default function PerfectVisitScreen() {
   const [isCheckingEmp, setIsCheckingEmp] = useState(false);
   const [empStatus, setEmpStatus] = useState<"new" | "found" | "idle">("idle");
 
-  // ⚠️ حالات الذكاء الاصطناعي
   const [isScanning, setIsScanning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -143,7 +141,6 @@ export default function PerfectVisitScreen() {
         setFormData(prev => ({ ...prev, name: "", phone: "", nationality: "", age: "", department: "", supervisor: "" }));
         return;
       }
-      // البحث لو الإقامة 4 أرقام أو أكثر
       if (formData.iqama.length >= 4) {
         setIsCheckingEmp(true);
         try {
@@ -154,13 +151,12 @@ export default function PerfectVisitScreen() {
               name: data.name || "", 
               phone: data.phone || "", 
               nationality: data.nationality || "", 
-              age: data.age ? String(data.age) : "", // ⚠️ تم إضافة العمر هنا
+              age: data.age ? String(data.age) : "", 
               department: data.department || "", 
               supervisor: data.work_place || "" 
             }));
             setEmpStatus("found");
           } else {
-            // لا تمسح البيانات لو كانت جاية من الـ AI
             if (empStatus === "found") setFormData(prev => ({ ...prev, name: "", phone: "", nationality: "", age: "", department: "", supervisor: "" }));
             setEmpStatus("new");
           }
@@ -174,21 +170,20 @@ export default function PerfectVisitScreen() {
   const updateMedication = (id: number, field: string, value: any) => setMedications(medications.map(med => med.id === id ? { ...med, [field]: value } : med));
 
   // =====================================
-  // ⚠️ دالة تصوير الإقامة والذكاء الاصطناعي ⚠️
+  // ⚠️ التعديل هنا لتجنب الشاشة الحمراء لو السيرفر زحمة
   // =====================================
   const handleIqamaScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsScanning(true);
-    const toastId = toast.loading('جاري مسح الإقامة واستخراج البيانات بالذكاء الاصطناعي...');
+    const toastId = toast.loading('جاري مسح الإقامة واستخراج البيانات...');
 
     try {
       const reader = new FileReader();
       reader.onload = async (event) => {
         const base64 = event.target?.result;
         
-        // الاتصال بالـ API اللي هنعمله الخطوة الجاية
         const res = await fetch('/api/scan-iqama', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -197,9 +192,14 @@ export default function PerfectVisitScreen() {
 
         const data = await res.json();
         
-        if (!res.ok) throw new Error(data.error || 'فشل في الاستخراج');
+        // لو في خطأ (سواء زحمة 503 أو غيره)، هيطلع توست ويقف بهدوء
+        if (!res.ok) {
+            toast.error(data.error || 'السيرفر مشغول حالياً، يرجى إعادة المحاولة', { id: toastId });
+            setIsScanning(false);
+            if (e.target) e.target.value = '';
+            return; 
+        }
 
-        // تعبئة البيانات المستخرجة تلقائياً
         setFormData(prev => ({
           ...prev,
           iqama: data.iqama_number || prev.iqama,
@@ -239,7 +239,7 @@ export default function PerfectVisitScreen() {
             nationality: formData.nationality || null, 
             department: formData.department || null, 
             work_place: formData.supervisor || null,
-            age: formData.age ? parseInt(formData.age) : null // ⚠️ تم حل مشكلة حفظ العمر في قاعدة البيانات
+            age: formData.age ? parseInt(formData.age) : null 
         }, { onConflict: 'iqama_number' })
         .select()
         .single();
@@ -294,26 +294,20 @@ export default function PerfectVisitScreen() {
           <div><h1 className="text-2xl font-black text-gray-800">تسجيل زيارة طبية جديدة</h1><p className="text-sm text-gray-500 mt-1">تعبئة نموذج الزيارة والحالة الحيوية</p></div>
         </div>
 
-        {/* ===================================== */}
-        {/* مربع الإقامة + زر التصوير (المعدل) */}
-        {/* ===================================== */}
         <div className="max-w-xl mx-auto mb-8">
           <div className="relative group">
             <div className={`absolute -inset-1 rounded-2xl blur opacity-25 transition duration-1000 ${empStatus === 'found' ? 'bg-green-400' : empStatus === 'new' ? 'bg-amber-400' : 'bg-blue-400'}`}></div>
             <div className="relative bg-white ring-1 ring-gray-200 rounded-2xl p-2 flex items-center shadow-sm">
               <input type="text" name="iqama" value={formData.iqama} onChange={handleInputChange} className="w-full bg-transparent p-4 outline-none text-2xl font-bold text-center text-gray-800 placeholder-gray-300 tracking-widest" placeholder="أدخل رقم الإقامة..." autoComplete="off" />
               
-              {/* زر البحث/التحميل */}
               <div className="absolute right-4">{isCheckingEmp ? <Loader2 size={24} className="animate-spin text-blue-500" /> : <Search size={24} className="text-gray-300" />}</div>
               
-              {/* أيقونة الحالة */}
               <div className="absolute left-4">{empStatus === "found" && <CheckCircle2 size={24} className="text-green-500" />}{empStatus === "new" && <XCircle size={24} className="text-amber-500" />}</div>
 
-              {/* زر الكاميرا السحري للـ AI */}
               <input 
                 type="file" 
                 accept="image/*" 
-                capture="environment" // يفتح الكاميرا الخلفية تلقائياً في الموبايل
+                capture="environment"
                 className="hidden" 
                 ref={fileInputRef} 
                 onChange={handleIqamaScan} 
@@ -336,7 +330,6 @@ export default function PerfectVisitScreen() {
           </div>
         </div>
 
-        {/* نوع الزيارة */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
           <h2 className="font-bold text-gray-800 text-lg mb-4 flex items-center gap-2"><ShieldAlert className="text-indigo-600"/> نوع الزيارة *</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -358,7 +351,6 @@ export default function PerfectVisitScreen() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* كارت العامل */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200">
             <div className="bg-gray-50 rounded-t-2xl border-b border-gray-100 px-6 py-4 flex items-center justify-between"><h2 className="font-bold text-gray-800 text-lg flex items-center gap-2">بيانات العامل</h2><User size={22} className="text-blue-500" /></div>
             <div className="p-6 space-y-4">
@@ -377,7 +369,6 @@ export default function PerfectVisitScreen() {
             </div>
           </div>
 
-          {/* كارت العلامات الحيوية */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200">
             <div className="bg-gray-50 rounded-t-2xl border-b border-gray-100 px-6 py-4 flex items-center justify-between"><h2 className="font-bold text-gray-800 text-lg flex items-center gap-2">العلامات الحيوية</h2><Activity size={22} className="text-emerald-500" /></div>
             <div className="p-6 grid grid-cols-2 gap-6 mt-2">
@@ -401,7 +392,6 @@ export default function PerfectVisitScreen() {
           </div>
         </div>
 
-        {/* التشخيص والتوصية */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200">
           <div className="bg-gray-50 rounded-t-2xl border-b border-gray-100 px-6 py-4 flex items-center justify-between"><h2 className="font-bold text-gray-800 text-lg flex items-center gap-2">التشخيص والتوصية</h2><FileText size={22} className="text-gray-500" /></div>
           <div className="p-6 space-y-6">
@@ -410,7 +400,6 @@ export default function PerfectVisitScreen() {
           </div>
         </div>
 
-        {/* الأدوية المصروفة */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
           <div className="flex justify-between items-center border-b border-gray-100 pb-4 mb-5">
             <h2 className="font-bold text-gray-800 text-xl flex items-center gap-2">الأدوية المصروفة <Pill className="text-purple-600" size={24}/></h2>
@@ -427,7 +416,6 @@ export default function PerfectVisitScreen() {
           </div>
         </div>
 
-        {/* حالة التحويل */}
         <div className="bg-[#fff9f2] border border-orange-200 rounded-2xl p-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <h3 className="flex items-center gap-2 text-orange-900 font-bold text-lg"><Send size={22} className="text-orange-600" /> حالة التحويل</h3>
@@ -455,4 +443,4 @@ export default function PerfectVisitScreen() {
       <Footer />
     </div>
   );
-                                                                                                                                                        }
+}
