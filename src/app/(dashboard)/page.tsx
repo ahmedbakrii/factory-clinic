@@ -11,7 +11,7 @@ const COLORS = ['#3b82f6', '#f59e0b', '#10b981', '#8b5cf6', '#ef4444', '#14b8a6'
 
 const getShiftName = (dateString: string) => {
   const h = new Date(dateString).getHours();
-  return (h >= 7 && h < 19) ? "وردية نهارية" : "وردية ليلية";
+  return (h >= 7 && h < 19) ? "وردية صباحية" : "وردية مسائية";
 };
 
 const getIndustrialDayBounds = (date: Date) => {
@@ -294,7 +294,7 @@ export default function MobileFirstDashboard() {
             ) : (
               recentVisits.map((visit) => {
                 const shiftName = getShiftName(visit.created_at); 
-                const isNight = shiftName === "وردية ليلية";
+                const isNight = shiftName === "وردية مسائية";
                 
                 return (
                 <div key={visit.id} onClick={() => setSelectedVisit(visit)} className="p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors cursor-pointer group">

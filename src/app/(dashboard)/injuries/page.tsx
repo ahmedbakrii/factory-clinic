@@ -15,7 +15,7 @@ const getEmp = (empData: any) => {
 
 const getShiftName = (dateString: string) => {
   const h = new Date(dateString).getHours();
-  return (h >= 7 && h < 19) ? "وردية نهارية" : "وردية ليلية";
+  return (h >= 7 && h < 19) ? "وردية صباحية" : "وردية مسائية";
 };
 
 const getIndustrialDayBounds = (date: Date) => {
@@ -382,7 +382,7 @@ function HSEContent() {
             const emp = getEmp(incident.employees);
             
             const shiftName = getShiftName(incident.created_at);
-            const isNight = shiftName === "وردية ليلية";
+            const isNight = shiftName === "وردية مسائية";
 
             let cardColor = "border-slate-200 hover:border-blue-300 bg-white";
             let iconColor = "bg-blue-50 text-blue-600";

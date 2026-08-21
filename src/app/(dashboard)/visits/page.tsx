@@ -7,7 +7,7 @@ import { Search, Filter, Loader2, Clock, User, Activity, HardHat, HeartPulse, Sh
 
 const getShiftName = (dateString: string) => {
   const h = new Date(dateString).getHours();
-  return (h >= 7 && h < 19) ? "وردية نهارية" : "وردية ليلية";
+  return (h >= 7 && h < 19) ? "وردية صباحية" : "وردية مسائية";
 };
 
 const getIndustrialDayBounds = (date: Date) => {
@@ -311,7 +311,7 @@ function VisitsContent() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredVisits.map((visit) => {
             const shiftName = getShiftName(visit.created_at);
-            const isNight = shiftName === "وردية ليلية";
+            const isNight = shiftName === "وردية مسائية";
 
             return (
             <div key={visit.id} onClick={() => openVisitDetails(visit)} className="bg-white p-5 rounded-[24px] shadow-sm border border-slate-200 hover:shadow-md hover:-translate-y-1 transition-all relative overflow-hidden group cursor-pointer">
