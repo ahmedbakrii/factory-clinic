@@ -51,7 +51,7 @@ export default function Navbar() {
             </div>
             <div>
               <span className="font-black text-lg md:text-xl text-slate-900 tracking-tight block leading-none group-hover:text-blue-600 transition-colors">
-                Energya Clinic
+                Bakrii  Clinic
               </span>
               <span className="text-[10px] md:text-xs text-slate-500 font-bold">
                 HSE Department

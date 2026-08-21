@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Save, User, Activity, FileText, Send, Pill, Loader2, CheckCircle2, Phone, Building2, Search, XCircle, ShieldAlert, StethoscopeIcon, HardHat, HeartPulse, Plus, Camera } from "lucide-react";
+import { Save, User, Activity, FileText, Send, Pill, Loader2, CheckCircle2, Phone, Building2, Search, XCircle, ShieldAlert, StethoscopeIcon, HardHat, HeartPulse, Plus, Camera, IdCard, Briefcase } from "lucide-react";
 import toast from "react-hot-toast";
 
 const VISIT_TYPES = [
@@ -54,14 +54,17 @@ export default function PerfectVisitScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingEmp, setIsCheckingEmp] = useState(false);
   const [empStatus, setEmpStatus] = useState<"new" | "found" | "idle">("idle");
+  const [currentEmpId, setCurrentEmpId] = useState<number | null>(null); // ⚠️ حفظ الـ ID لو الموظف موجود
 
   const [isScanning, setIsScanning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
-    iqama: "", name: "", phone: "", nationality: "", age: "", department: "", supervisor: "",
-    temp: "", pulse: "", rbs: "",
-    bp_sys: "", bp_dia: "", 
+    searchId: "", // رقم البحث الأساسي
+    iqama_number: "", // رقم الإقامة الفعلي
+    employee_number: "", // الرقم الوظيفي الفعلي
+    name: "", phone: "", nationality: "", age: "", department: "", supervisor: "",
+    temp: "", pulse: "", rbs: "", bp_sys: "", bp_dia: "", 
     visitType: "", injuryType: "", bodyPart: "", disease: "", recommendation: "", transferred: "Not Transferred", hospital: "", companionName: "", companionPhone: ""
   });
 
@@ -79,18 +82,9 @@ export default function PerfectVisitScreen() {
       router.push("/login");
       return;
     }
-    
     const session = JSON.parse(sessionStr);
-    if (session.role === "HSE_MANAGER") {
-      router.push("/visits"); 
-    }
+    if (session.role === "HSE_MANAGER") router.push("/visits"); 
   }, [router]);
-
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const iqamaFromUrl = urlParams.get('iqama');
-    if (iqamaFromUrl) setFormData(prev => ({ ...prev, iqama: iqamaFromUrl }));
-  }, []);
 
   useEffect(() => {
     async function loadReferenceData() {
@@ -108,7 +102,7 @@ export default function PerfectVisitScreen() {
         if (natsRes.data) setDbNationalities(natsRes.data.map(n => ({ label: n.name, value: n.name })));
         if (injRes.data) setDbInjuryTypes(injRes.data.map(i => ({ label: i.name, value: i.name })));
         if (partsRes.data) setDbBodyParts(partsRes.data.map(p => ({ label: p.name, value: p.name })));
-      } catch (error) { console.error("Error loading reference data:", error); }
+      } catch (error) { console.error("Error loading data:", error); }
     }
     loadReferenceData();
   }, []);
@@ -119,7 +113,6 @@ export default function PerfectVisitScreen() {
   const checkVitals = (type: string, val1: string, val2?: string) => {
     if (!val1) return null;
     let v1 = parseFloat(val1);
-    
     switch(type) {
       case 'temp': return v1 < 36.1 ? <span className="text-blue-600 text-xs font-bold bg-blue-100 px-2 py-0.5 rounded">منخفض</span> : v1 > 37.5 ? <span className="text-red-600 text-xs font-bold bg-red-100 px-2 py-0.5 rounded">مرتفع</span> : <span className="text-green-600 text-xs font-bold bg-green-100 px-2 py-0.5 rounded">طبيعي</span>;
       case 'pulse': return v1 < 60 ? <span className="text-blue-600 text-xs font-bold bg-blue-100 px-2 py-0.5 rounded">بطيء</span> : v1 > 100 ? <span className="text-red-600 text-xs font-bold bg-red-100 px-2 py-0.5 rounded">سريع</span> : <span className="text-green-600 text-xs font-bold bg-green-100 px-2 py-0.5 rounded">طبيعي</span>;
@@ -134,20 +127,29 @@ export default function PerfectVisitScreen() {
     }
   };
 
+  // ⚠️ جدار الحماية الذكي: بيقبل أي رقم من 1 لـ 10
+  const searchIdLength = formData.searchId.trim().length;
+  const isInvalidSearch = searchIdLength > 0 && searchIdLength > 10;
+
   useEffect(() => {
-    const checkIqama = setTimeout(async () => {
-      if (formData.iqama.trim() === "") {
-        setEmpStatus("idle"); setIsCheckingEmp(false);
-        setFormData(prev => ({ ...prev, name: "", phone: "", nationality: "", age: "", department: "", supervisor: "" }));
+    const checkSearchId = setTimeout(async () => {
+      if (formData.searchId.trim() === "") {
+        setEmpStatus("idle"); setIsCheckingEmp(false); setCurrentEmpId(null);
+        setFormData(prev => ({ ...prev, name: "", phone: "", nationality: "", age: "", department: "", supervisor: "", iqama_number: "", employee_number: "" }));
         return;
       }
-      if (formData.iqama.length >= 4) {
+      
+      if (!isInvalidSearch && searchIdLength >= 1) {
         setIsCheckingEmp(true);
         try {
-          const { data } = await supabase.from("employees").select("*").or(`iqama_number.eq.${formData.iqama},employee_number.eq.${formData.iqama}`).single();
+          // بيبحث في الإقامة والرقم الوظيفي في نفس الوقت!
+          const { data } = await supabase.from("employees").select("*").or(`iqama_number.eq.${formData.searchId},employee_number.eq.${formData.searchId}`).single();
+          
           if (data) {
             setFormData(prev => ({ 
               ...prev, 
+              iqama_number: data.iqama_number || (searchIdLength === 10 ? prev.searchId : ""),
+              employee_number: data.employee_number || (searchIdLength < 10 ? prev.searchId : ""),
               name: data.name || "", 
               phone: data.phone || "", 
               nationality: data.nationality || "", 
@@ -156,22 +158,31 @@ export default function PerfectVisitScreen() {
               supervisor: data.work_place || "" 
             }));
             setEmpStatus("found");
+            setCurrentEmpId(data.id); // ⚠️ حفظنا الـ ID عشان نعدل عليه
           } else {
-            if (empStatus === "found") setFormData(prev => ({ ...prev, name: "", phone: "", nationality: "", age: "", department: "", supervisor: "" }));
+            if (empStatus === "found") setFormData(prev => ({ ...prev, name: "", phone: "", nationality: "", age: "", department: "", supervisor: "", iqama_number: "", employee_number: "" }));
             setEmpStatus("new");
+            setCurrentEmpId(null);
+            
+            // توزيع الرقم المكتوب بذكاء
+            if (searchIdLength === 10) setFormData(prev => ({ ...prev, iqama_number: prev.searchId, employee_number: "" }));
+            else setFormData(prev => ({ ...prev, employee_number: prev.searchId, iqama_number: "" }));
           }
-        } catch { setEmpStatus("new"); } finally { setIsCheckingEmp(false); }
+        } catch { 
+          setEmpStatus("new"); setCurrentEmpId(null); 
+          if (searchIdLength === 10) setFormData(prev => ({ ...prev, iqama_number: prev.searchId, employee_number: "" }));
+          else setFormData(prev => ({ ...prev, employee_number: prev.searchId, iqama_number: "" }));
+        } finally { setIsCheckingEmp(false); }
+      } else {
+        setEmpStatus("idle"); setCurrentEmpId(null);
       }
     }, 500);
-    return () => clearTimeout(checkIqama);
-  }, [formData.iqama]);
+    return () => clearTimeout(checkSearchId);
+  }, [formData.searchId, isInvalidSearch]);
 
   const addMedication = () => setMedications([...medications, { id: Date.now(), medId: "" }]);
   const updateMedication = (id: number, field: string, value: any) => setMedications(medications.map(med => med.id === id ? { ...med, [field]: value } : med));
 
-  // =====================================
-  // ⚠️ التعديل هنا لتجنب الشاشة الحمراء لو السيرفر زحمة
-  // =====================================
   const handleIqamaScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -183,16 +194,13 @@ export default function PerfectVisitScreen() {
       const reader = new FileReader();
       reader.onload = async (event) => {
         const base64 = event.target?.result;
-        
         const res = await fetch('/api/scan-iqama', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ imageBase64: base64 })
         });
-
         const data = await res.json();
         
-        // لو في خطأ (سواء زحمة 503 أو غيره)، هيطلع توست ويقف بهدوء
         if (!res.ok) {
             toast.error(data.error || 'السيرفر مشغول حالياً، يرجى إعادة المحاولة', { id: toastId });
             setIsScanning(false);
@@ -202,7 +210,8 @@ export default function PerfectVisitScreen() {
 
         setFormData(prev => ({
           ...prev,
-          iqama: data.iqama_number || prev.iqama,
+          searchId: data.iqama_number || prev.searchId, // هنحطه في البحث عشان يتبحث عنه
+          iqama_number: data.iqama_number || prev.iqama_number,
           name: data.name || prev.name,
           nationality: data.nationality || prev.nationality,
           age: data.age ? String(data.age) : prev.age
@@ -226,31 +235,42 @@ export default function PerfectVisitScreen() {
 
     if (session.isDemo) return toast.error("أنت في وضع المشاهدة (Demo). لا يمكنك إدخال بيانات.", { icon: '👁️' });
 
+    // مراجعة أخيرة قبل الحفظ
+    if (!formData.iqama_number && !formData.employee_number) {
+        return toast.error("يجب إدخال رقم الإقامة أو الرقم الوظيفي على الأقل!");
+    }
+
     setIsLoading(true);
     try {
-      let currentEmpId = null;
+      let finalEmpId = currentEmpId;
 
-      const { data: empData, error: empErr } = await supabase
-        .from('employees')
-        .upsert({
-            iqama_number: formData.iqama, 
-            name: formData.name || 'غير مسجل', 
-            phone: formData.phone || null, 
-            nationality: formData.nationality || null, 
-            department: formData.department || null, 
-            work_place: formData.supervisor || null,
-            age: formData.age ? parseInt(formData.age) : null 
-        }, { onConflict: 'iqama_number' })
-        .select()
-        .single();
-      
-      if (empErr) throw empErr;
-      currentEmpId = empData.id;
+      const empPayload: any = {
+        name: formData.name || 'غير مسجل', 
+        phone: formData.phone || null, 
+        nationality: formData.nationality || null, 
+        department: formData.department || null, 
+        work_place: formData.supervisor || null,
+        age: formData.age ? parseInt(formData.age) : null,
+        iqama_number: formData.iqama_number || null,
+        employee_number: formData.employee_number || null
+      };
+
+      // ⚠️ الحفظ الذكي (Update لو موجود، Insert لو جديد)
+      if (finalEmpId) {
+         // تحديث الموظف الحالي (عشان نضيفله الرقم اللي كان ناقص)
+         const { error: updateErr } = await supabase.from('employees').update(empPayload).eq('id', finalEmpId);
+         if (updateErr) throw updateErr;
+      } else {
+         // إضافة موظف جديد تماماً
+         const { data: insertedEmp, error: insertErr } = await supabase.from('employees').insert([empPayload]).select().single();
+         if (insertErr) throw insertErr;
+         finalEmpId = insertedEmp.id;
+      }
 
       const combinedBP = (formData.bp_sys && formData.bp_dia) ? `${formData.bp_sys}/${formData.bp_dia}` : null;
 
       const { data: newVisit, error: visitErr } = await supabase.from("visits").insert([{
-        employee_id: currentEmpId, 
+        employee_id: finalEmpId, 
         visit_type: formData.visitType, 
         complaint: formData.disease, 
         diagnosis: formData.disease, 
@@ -273,13 +293,13 @@ export default function PerfectVisitScreen() {
       }
 
       if (formData.transferred === "Transferred") {
-        await supabase.from("referrals").insert([{ visit_id: newVisit.id, employee_id: currentEmpId, hospital: formData.hospital, notes: `المرافق: ${formData.companionName} | جوال: ${formData.companionPhone}`, status: 'Pending' }]);
+        await supabase.from("referrals").insert([{ visit_id: newVisit.id, employee_id: finalEmpId, hospital: formData.hospital, notes: `المرافق: ${formData.companionName} | جوال: ${formData.companionPhone}`, status: 'Pending' }]);
       }
 
-      toast.success("تم حفظ الزيارة واعتماد البيانات بنجاح!");
+      toast.success("تم حفظ الزيارة وتحديث بيانات العامل بنجاح!");
       router.push('/');
     } catch (error: any) { 
-      toast.error("حدث خطأ أثناء الحفظ: " + error.message); 
+      toast.error("حدث خطأ أثناء الحفظ (قد يكون الرقم مسجل لموظف آخر)"); 
     } finally { 
       setIsLoading(false); 
     }
@@ -294,38 +314,37 @@ export default function PerfectVisitScreen() {
           <div><h1 className="text-2xl font-black text-gray-800">تسجيل زيارة طبية جديدة</h1><p className="text-sm text-gray-500 mt-1">تعبئة نموذج الزيارة والحالة الحيوية</p></div>
         </div>
 
+        {/* ⚠️ شريط البحث الموحد (إقامة أو وظيفي) */}
         <div className="max-w-xl mx-auto mb-8">
           <div className="relative group">
-            <div className={`absolute -inset-1 rounded-2xl blur opacity-25 transition duration-1000 ${empStatus === 'found' ? 'bg-green-400' : empStatus === 'new' ? 'bg-amber-400' : 'bg-blue-400'}`}></div>
-            <div className="relative bg-white ring-1 ring-gray-200 rounded-2xl p-2 flex items-center shadow-sm">
-              <input type="text" name="iqama" value={formData.iqama} onChange={handleInputChange} className="w-full bg-transparent p-4 outline-none text-2xl font-bold text-center text-gray-800 placeholder-gray-300 tracking-widest" placeholder="أدخل رقم الإقامة..." autoComplete="off" />
+            <div className={`absolute -inset-1 rounded-2xl blur opacity-25 transition duration-1000 ${isInvalidSearch ? 'bg-red-500' : empStatus === 'found' ? 'bg-green-400' : empStatus === 'new' ? 'bg-amber-400' : 'bg-blue-400'}`}></div>
+            <div className={`relative bg-white ring-1 ${isInvalidSearch ? 'ring-red-400' : 'ring-gray-200'} rounded-2xl p-2 flex items-center shadow-sm`}>
+              <input 
+                type="number" 
+                name="searchId" 
+                value={formData.searchId} 
+                onChange={handleInputChange} 
+                className="w-full bg-transparent p-4 outline-none text-2xl font-bold text-center text-gray-800 placeholder-gray-300 tracking-widest" 
+                placeholder="ابحث برقم الإقامة أو الوظيفي..." 
+                autoComplete="off" 
+              />
               
               <div className="absolute right-4">{isCheckingEmp ? <Loader2 size={24} className="animate-spin text-blue-500" /> : <Search size={24} className="text-gray-300" />}</div>
-              
-              <div className="absolute left-4">{empStatus === "found" && <CheckCircle2 size={24} className="text-green-500" />}{empStatus === "new" && <XCircle size={24} className="text-amber-500" />}</div>
+              <div className="absolute left-4">
+                {isInvalidSearch ? <XCircle size={24} className="text-red-500" /> : (empStatus === "found" && <CheckCircle2 size={24} className="text-green-500" />)}
+                {empStatus === "new" && !isInvalidSearch && <ShieldAlert size={24} className="text-amber-500" />}
+              </div>
 
-              <input 
-                type="file" 
-                accept="image/*" 
-                capture="environment"
-                className="hidden" 
-                ref={fileInputRef} 
-                onChange={handleIqamaScan} 
-              />
-              <button 
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isScanning}
-                className="absolute right-12 bg-blue-50 text-blue-600 p-2.5 rounded-xl hover:bg-blue-100 transition-colors shadow-sm"
-                title="تصوير الهوية واستخراج البيانات"
-              >
+              <input type="file" accept="image/*" capture="environment" className="hidden" ref={fileInputRef} onChange={handleIqamaScan} />
+              <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isScanning} className="absolute right-12 bg-blue-50 text-blue-600 p-2.5 rounded-xl hover:bg-blue-100 transition-colors shadow-sm" title="تصوير الهوية واستخراج البيانات">
                 <Camera size={20} className={isScanning ? "animate-pulse" : ""} />
               </button>
             </div>
           </div>
           <div className="text-center mt-3 h-6 flex justify-center gap-2">
-            {empStatus === "found" && <span className="text-sm font-bold text-green-700 bg-green-100 px-4 py-1 rounded-full">الموظف مسجل مسبقاً بالنظام</span>}
-            {empStatus === "new" && <span className="text-sm font-bold text-amber-700 bg-amber-100 px-4 py-1 rounded-full">يتم تسجيل موظف جديد</span>}
+            {isInvalidSearch && <span className="text-sm font-bold text-red-700 bg-red-100 px-4 py-1 rounded-full animate-pulse">رقم غير صالح! تأكد من الرقم.</span>}
+            {empStatus === "found" && !isInvalidSearch && <span className="text-sm font-bold text-green-700 bg-green-100 px-4 py-1 rounded-full">تم العثور على ملف العامل</span>}
+            {empStatus === "new" && !isInvalidSearch && searchIdLength > 0 && <span className="text-sm font-bold text-amber-700 bg-amber-100 px-4 py-1 rounded-full">سيتم إنشاء ملف جديد للعامل</span>}
             {isScanning && <span className="text-sm font-bold text-blue-700 bg-blue-100 px-4 py-1 rounded-full animate-pulse">جاري تحليل الإقامة...</span>}
           </div>
         </div>
@@ -354,6 +373,19 @@ export default function PerfectVisitScreen() {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200">
             <div className="bg-gray-50 rounded-t-2xl border-b border-gray-100 px-6 py-4 flex items-center justify-between"><h2 className="font-bold text-gray-800 text-lg flex items-center gap-2">بيانات العامل</h2><User size={22} className="text-blue-500" /></div>
             <div className="p-6 space-y-4">
+              
+              {/* ⚠️ خانات الأرقام داخل الكارت عشان الممرض يكملهم */}
+              <div className="grid grid-cols-2 gap-4 pb-4 border-b border-gray-100">
+                <div className="col-span-2 md:col-span-1">
+                    <label className="block text-center text-sm font-bold text-gray-600 mb-2">رقم الإقامة <span className="text-red-500">*</span></label>
+                    <input type="number" name="iqama_number" value={formData.iqama_number} onChange={handleInputChange} className={`w-full p-3 border ${!formData.iqama_number ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-gray-50/50'} rounded-xl text-center font-bold`} placeholder="أكمل رقم الإقامة..." />
+                </div>
+                <div className="col-span-2 md:col-span-1">
+                    <label className="block text-center text-sm font-bold text-gray-600 mb-2">الرقم الوظيفي</label>
+                    <input type="number" name="employee_number" value={formData.employee_number} onChange={handleInputChange} className={`w-full p-3 border ${!formData.employee_number ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-gray-50/50'} rounded-xl text-center font-bold`} placeholder="أكمل الرقم الوظيفي..." />
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2 md:col-span-1"><label className="block text-center text-sm font-semibold text-gray-600 mb-2">الاسم</label><input type="text" name="name" value={formData.name} onChange={handleInputChange} className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50/50 text-center" /></div>
                 <div className="col-span-2 md:col-span-1"><label className="block text-center text-sm font-semibold text-gray-600 mb-2">الجوال</label><input type="text" name="phone" value={formData.phone} onChange={handleInputChange} className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50/50 text-center" dir="ltr" /></div>
@@ -434,8 +466,8 @@ export default function PerfectVisitScreen() {
         </div>
 
         <div className="pt-6">
-          <button onClick={handleSave} disabled={isLoading || !formData.iqama || !formData.visitType} className="w-full bg-blue-600 hover:bg-blue-700 text-white px-8 py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 shadow-xl disabled:opacity-50">
-            <Save size={24} /> {isLoading ? "جاري تسجيل البيانات..." : "حفظ بيانات الزيارة"}
+          <button onClick={handleSave} disabled={isLoading || isInvalidSearch || !formData.visitType || (!formData.iqama_number && !formData.employee_number)} className="w-full bg-blue-600 hover:bg-blue-700 text-white px-8 py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed">
+            <Save size={24} /> {isLoading ? "جاري الحفظ..." : "حفظ الزيارة وتحديث البيانات"}
           </button>
         </div>
       </main>

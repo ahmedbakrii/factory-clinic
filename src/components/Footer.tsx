@@ -17,10 +17,10 @@ export default function Footer() {
         {/* الجزء الرسمي الخاص بالعيادة والسلامة */}
         <div className="text-center md:text-right">
           <p className="text-sm font-bold text-gray-600">
-            نظام إدارة العيادة    (Energya Clinic) © {currentYear}
+            نظام إدارة العيادة © {currentYear}
           </p>
           <p className="text-xs font-semibold text-gray-400 mt-1">
-            Energya Steel Solutions - جميع الحقوق محفوظة
+            Energya  Steel Solutions - جميع الحقوق محفوظة
           </p>
         </div>
 

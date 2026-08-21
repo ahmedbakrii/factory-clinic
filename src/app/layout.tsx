@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Energya Clinic",
+  title: "Bakrii  Clinic",
   description: "نظام إدارة العيادة والسلامة والصحة المهنية",
   manifest: "/manifest.json",
 };
