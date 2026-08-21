@@ -16,28 +16,11 @@ type RecordRow = {
   diagnosis: string | null;
   status: string | null;
   created_at: string;
-  employees:
-    | {
-        name: string | null;
-        iqama_number: string | null;
-        employee_number: string | null;
-        department: string | null;
-      }
-    | {
-        name: string | null;
-        iqama_number: string | null;
-        employee_number: string | null;
-        department: string | null;
-      }[]
-    | null;
-  visit_vitals:
-    | {
-        temperature: string | number | null;
-        pulse: string | number | null;
-        blood_pressure: string | null;
-        rbs: string | number | null;
-      }[]
-    | null;
+  temperature: string | number | null;
+  pulse: string | number | null;
+  blood_pressure: string | null;
+  rbs: string | number | null;
+  employees: any; // ⚠️ تم حل مشكلة الـ TypeScript هنا
 };
 
 type ReportPeriod = {
@@ -55,17 +38,6 @@ const getEmployee = (record: RecordRow) => {
   return record.employees;
 };
 
-type Vitals = {
-  temperature: string | number | null;
-  pulse: string | number | null;
-  blood_pressure: string | null;
-  rbs: string | number | null;
-};
-
-const getVitals = (record: RecordRow): Partial<Vitals> => {
-  return record.visit_vitals?.[0] ?? {};
-};
-
 const getShiftName = (dateString: string) => {
   const hour = new Date(dateString).getHours();
   return hour >= 7 && hour < 19 ? "نهارية" : "ليلية";
@@ -73,11 +45,9 @@ const getShiftName = (dateString: string) => {
 
 const getIndustrialDayBounds = (date: Date) => {
   const start = new Date(date);
-
   if (start.getHours() < 7) {
     start.setDate(start.getDate() - 1);
   }
-
   start.setHours(7, 0, 0, 0);
 
   const end = new Date(start);
@@ -118,12 +88,9 @@ const getDayLabel = (dateString: string) =>
 
 const getRecordDateKey = (dateString: string) => {
   const date = new Date(dateString);
-
-  // The clinic's industrial day starts at 07:00.
   if (date.getHours() < 7) {
     date.setDate(date.getDate() - 1);
   }
-
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
     2,
     "0"
@@ -132,11 +99,9 @@ const getRecordDateKey = (dateString: string) => {
 
 const getRecordDate = (dateString: string) => {
   const date = new Date(dateString);
-
   if (date.getHours() < 7) {
     date.setDate(date.getDate() - 1);
   }
-
   return date;
 };
 
@@ -161,14 +126,11 @@ const getPeriod = (
   if (filter === "week") {
     const start = new Date(now);
     const daysSinceSaturday = (start.getDay() + 1) % 7;
-
     start.setDate(start.getDate() - daysSinceSaturday);
-
     const weekStart = getIndustrialDayBounds(start).start;
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 7);
     weekEnd.setMilliseconds(-1);
-
     return { start: weekStart, end: weekEnd };
   }
 
@@ -179,7 +141,6 @@ const getPeriod = (
       now.getMonth() + 1,
       0
     );
-
     return {
       start: getIndustrialDayBounds(monthStart).start,
       end: getIndustrialDayBounds(monthEnd).end,
@@ -236,17 +197,15 @@ export default function ReportsCenter() {
           diagnosis,
           status,
           created_at,
+          temperature,
+          pulse,
+          blood_pressure,
+          rbs,
           employees (
             name,
             iqama_number,
             employee_number,
             department
-          ),
-          visit_vitals (
-            temperature,
-            pulse,
-            blood_pressure,
-            rbs
           )
         `)
         .gte("created_at", period.start.toISOString())
@@ -255,7 +214,8 @@ export default function ReportsCenter() {
 
       if (error) throw error;
 
-      const fetchedData = (data || []) as RecordRow[];
+      // ⚠️ تم إصلاح مشكلة TypeScript هنا باستخدام unknown casting
+      const fetchedData = (data as unknown) as RecordRow[];
 
       setRecords(fetchedData);
       setReportPeriod(period);
@@ -343,7 +303,6 @@ export default function ReportsCenter() {
 
       const exportData = records.map((record, index) => {
         const employee = getEmployee(record);
-        const vitals = getVitals(record);
 
         return {
           "#": index + 1,
@@ -356,10 +315,10 @@ export default function ReportsCenter() {
           "القسم / الورشة": employee?.department || "-",
           "نوع الزيارة": getVisitTypeLabel(record),
           "التشخيص الطبي": record.diagnosis || "-",
-          "الحرارة": vitals.temperature ?? "-",
-          "النبض": vitals.pulse ?? "-",
-          "الضغط": vitals.blood_pressure ?? "-",
-          "السكر": vitals.rbs ?? "-",
+          "الحرارة": record.temperature ?? "-",
+          "النبض": record.pulse ?? "-",
+          "الضغط": record.blood_pressure ?? "-",
+          "السكر": record.rbs ?? "-",
         };
       });
 
@@ -770,7 +729,7 @@ export default function ReportsCenter() {
 
               <div className="bg-slate-50 print:bg-white print:border-slate-300 border border-slate-200 p-4 rounded-xl text-center print-summary-card">
                 <p className="text-[10px] md:text-xs font-bold text-slate-500 mb-1">
-                  إصابات عمل
+                  إصابات
                 </p>
                 <h3 className="text-2xl font-black text-slate-800">
                   {stats.workInjuries}

@@ -83,19 +83,24 @@ function VisitsContent() {
 
   useEffect(() => { if (timeFilter !== "custom") fetchVisits(); }, [timeFilter]);
 
+  // ⚠️ تم الإصلاح هنا (شيلنا الاستدعاءات للجداول الممسوحة)
   const openVisitDetails = async (visit: any) => {
     setSelectedVisit(visit);
     setIsDetailsLoading(true);
     try {
-      const [vitalsRes, injuriesRes, medsRes, historyRes] = await Promise.all([
-        supabase.from('visit_vitals').select('*').eq('visit_id', visit.id).maybeSingle(),
-        supabase.from('injuries').select('*').eq('visit_id', visit.id).maybeSingle(),
+      const [medsRes, historyRes] = await Promise.all([
         supabase.from('visit_medications').select('*, medicines(name)').eq('visit_id', visit.id),
         supabase.from('visits').select('id').eq('employee_id', visit.employee_id).order('created_at', { ascending: true })
       ]);
       const fullHistory = historyRes.data || [];
       const currentIndex = fullHistory.findIndex(v => v.id === visit.id) + 1;
-      setSelectedVisit({ ...visit, vitals: vitalsRes.data, injury: injuriesRes.data, medications: medsRes.data });
+      
+      setSelectedVisit({ 
+        ...visit, 
+        vitals: { temperature: visit.temperature, pulse: visit.pulse, blood_pressure: visit.blood_pressure, rbs: visit.rbs }, 
+        injury: visit.injury_type ? { injury_type: visit.injury_type, body_part: visit.body_part } : null, 
+        medications: medsRes.data 
+      });
       setVisitStats({ current: currentIndex, total: fullHistory.length });
     } catch (error) { console.error("Error details:", error); } finally { setIsDetailsLoading(false); }
   };
@@ -159,18 +164,21 @@ function VisitsContent() {
 
           const isTransferred = String(row['Transferred']).toLowerCase().includes('transferred') && !String(row['Transferred']).toLowerCase().includes('not') ? 'Transferred' : 'Completed';
 
+          // ⚠️ تم إزالة الإدخال في الجداول الممسوحة من هنا برضه
           const { data: newVisit } = await supabase.from('visits').insert({
-            employee_id: empId, visit_type: "Medical Complaint", diagnosis: row['Disease'], recommendation: row['Recommendation'], status: isTransferred, created_at: visitDate.toISOString()
+            employee_id: empId, 
+            visit_type: "Medical Complaint", 
+            diagnosis: row['Disease'], 
+            recommendation: row['Recommendation'], 
+            status: isTransferred, 
+            created_at: visitDate.toISOString(),
+            temperature: parseFloat(row['TEMP']) || null, 
+            pulse: parseInt(row['PULSE']) || null, 
+            blood_pressure: row['Blood Preasure'] || null, 
+            rbs: parseInt(row['RBS']) || null
           }).select('id').single();
 
-          if (newVisit?.id) {
-            if (row['TEMP'] || row['PULSE'] || row['Blood Preasure'] || row['RBS']) {
-              await supabase.from('visit_vitals').insert({
-                visit_id: newVisit.id, temperature: parseFloat(row['TEMP']) || null, pulse: parseInt(row['PULSE']) || null, blood_pressure: row['Blood Preasure'] || null, rbs: parseInt(row['RBS']) || null
-              });
-            }
-            successCount++;
-          }
+          if (newVisit?.id) successCount++;
         }
         alert(`✅ تم رفع ${successCount} زيارة تاريخية بنجاح!`);
         fetchVisits();
@@ -359,6 +367,7 @@ function VisitsContent() {
         </div>
       )}
 
+      {/* Modal التفاصيل الكاملة */}
       {selectedVisit && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-[#f8fafc] rounded-[24px] w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95">

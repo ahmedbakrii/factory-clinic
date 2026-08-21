@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Save, User, Activity, FileText, Send, Pill, Loader2, CheckCircle2, Phone, Building2, Search, XCircle, ShieldAlert, StethoscopeIcon, HardHat, HeartPulse, Plus, Camera, IdCard, Briefcase } from "lucide-react";
+import { Save, User, Activity, FileText, Send, Pill, Loader2, CheckCircle2, Phone, Building2, Search, XCircle, ShieldAlert, StethoscopeIcon, HardHat, HeartPulse, Plus, Camera } from "lucide-react";
 import toast from "react-hot-toast";
 
 const VISIT_TYPES = [
@@ -54,15 +54,15 @@ export default function PerfectVisitScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingEmp, setIsCheckingEmp] = useState(false);
   const [empStatus, setEmpStatus] = useState<"new" | "found" | "idle">("idle");
-  const [currentEmpId, setCurrentEmpId] = useState<number | null>(null); // ⚠️ حفظ الـ ID لو الموظف موجود
+  const [currentEmpId, setCurrentEmpId] = useState<number | null>(null); 
 
   const [isScanning, setIsScanning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
-    searchId: "", // رقم البحث الأساسي
-    iqama_number: "", // رقم الإقامة الفعلي
-    employee_number: "", // الرقم الوظيفي الفعلي
+    searchId: "", 
+    iqama_number: "", 
+    employee_number: "", 
     name: "", phone: "", nationality: "", age: "", department: "", supervisor: "",
     temp: "", pulse: "", rbs: "", bp_sys: "", bp_dia: "", 
     visitType: "", injuryType: "", bodyPart: "", disease: "", recommendation: "", transferred: "Not Transferred", hospital: "", companionName: "", companionPhone: ""
@@ -127,7 +127,6 @@ export default function PerfectVisitScreen() {
     }
   };
 
-  // ⚠️ جدار الحماية الذكي: بيقبل أي رقم من 1 لـ 10
   const searchIdLength = formData.searchId.trim().length;
   const isInvalidSearch = searchIdLength > 0 && searchIdLength > 10;
 
@@ -142,7 +141,6 @@ export default function PerfectVisitScreen() {
       if (!isInvalidSearch && searchIdLength >= 1) {
         setIsCheckingEmp(true);
         try {
-          // بيبحث في الإقامة والرقم الوظيفي في نفس الوقت!
           const { data } = await supabase.from("employees").select("*").or(`iqama_number.eq.${formData.searchId},employee_number.eq.${formData.searchId}`).single();
           
           if (data) {
@@ -158,13 +156,12 @@ export default function PerfectVisitScreen() {
               supervisor: data.work_place || "" 
             }));
             setEmpStatus("found");
-            setCurrentEmpId(data.id); // ⚠️ حفظنا الـ ID عشان نعدل عليه
+            setCurrentEmpId(data.id);
           } else {
             if (empStatus === "found") setFormData(prev => ({ ...prev, name: "", phone: "", nationality: "", age: "", department: "", supervisor: "", iqama_number: "", employee_number: "" }));
             setEmpStatus("new");
             setCurrentEmpId(null);
             
-            // توزيع الرقم المكتوب بذكاء
             if (searchIdLength === 10) setFormData(prev => ({ ...prev, iqama_number: prev.searchId, employee_number: "" }));
             else setFormData(prev => ({ ...prev, employee_number: prev.searchId, iqama_number: "" }));
           }
@@ -210,7 +207,7 @@ export default function PerfectVisitScreen() {
 
         setFormData(prev => ({
           ...prev,
-          searchId: data.iqama_number || prev.searchId, // هنحطه في البحث عشان يتبحث عنه
+          searchId: data.iqama_number || prev.searchId, 
           iqama_number: data.iqama_number || prev.iqama_number,
           name: data.name || prev.name,
           nationality: data.nationality || prev.nationality,
@@ -235,7 +232,6 @@ export default function PerfectVisitScreen() {
 
     if (session.isDemo) return toast.error("أنت في وضع المشاهدة (Demo). لا يمكنك إدخال بيانات.", { icon: '👁️' });
 
-    // مراجعة أخيرة قبل الحفظ
     if (!formData.iqama_number && !formData.employee_number) {
         return toast.error("يجب إدخال رقم الإقامة أو الرقم الوظيفي على الأقل!");
     }
@@ -255,13 +251,10 @@ export default function PerfectVisitScreen() {
         employee_number: formData.employee_number || null
       };
 
-      // ⚠️ الحفظ الذكي (Update لو موجود، Insert لو جديد)
       if (finalEmpId) {
-         // تحديث الموظف الحالي (عشان نضيفله الرقم اللي كان ناقص)
          const { error: updateErr } = await supabase.from('employees').update(empPayload).eq('id', finalEmpId);
          if (updateErr) throw updateErr;
       } else {
-         // إضافة موظف جديد تماماً
          const { data: insertedEmp, error: insertErr } = await supabase.from('employees').insert([empPayload]).select().single();
          if (insertErr) throw insertErr;
          finalEmpId = insertedEmp.id;
@@ -269,6 +262,7 @@ export default function PerfectVisitScreen() {
 
       const combinedBP = (formData.bp_sys && formData.bp_dia) ? `${formData.bp_sys}/${formData.bp_dia}` : null;
 
+      // ⚠️ التعديل المهم: الحفظ كله بيتم في visits بس، وشيلنا الحفظ بتاع الجداول الممسوحة
       const { data: newVisit, error: visitErr } = await supabase.from("visits").insert([{
         employee_id: finalEmpId, 
         visit_type: formData.visitType, 
@@ -314,7 +308,6 @@ export default function PerfectVisitScreen() {
           <div><h1 className="text-2xl font-black text-gray-800">تسجيل زيارة طبية جديدة</h1><p className="text-sm text-gray-500 mt-1">تعبئة نموذج الزيارة والحالة الحيوية</p></div>
         </div>
 
-        {/* ⚠️ شريط البحث الموحد (إقامة أو وظيفي) */}
         <div className="max-w-xl mx-auto mb-8">
           <div className="relative group">
             <div className={`absolute -inset-1 rounded-2xl blur opacity-25 transition duration-1000 ${isInvalidSearch ? 'bg-red-500' : empStatus === 'found' ? 'bg-green-400' : empStatus === 'new' ? 'bg-amber-400' : 'bg-blue-400'}`}></div>
@@ -374,7 +367,6 @@ export default function PerfectVisitScreen() {
             <div className="bg-gray-50 rounded-t-2xl border-b border-gray-100 px-6 py-4 flex items-center justify-between"><h2 className="font-bold text-gray-800 text-lg flex items-center gap-2">بيانات العامل</h2><User size={22} className="text-blue-500" /></div>
             <div className="p-6 space-y-4">
               
-              {/* ⚠️ خانات الأرقام داخل الكارت عشان الممرض يكملهم */}
               <div className="grid grid-cols-2 gap-4 pb-4 border-b border-gray-100">
                 <div className="col-span-2 md:col-span-1">
                     <label className="block text-center text-sm font-bold text-gray-600 mb-2">رقم الإقامة <span className="text-red-500">*</span></label>

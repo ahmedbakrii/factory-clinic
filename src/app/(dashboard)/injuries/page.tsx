@@ -188,7 +188,7 @@ function HSEContent() {
       {/* رأس الصفحة وفلتر الوقت */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl md:text-3xl font-black text-slate-800">إدارة الحوادث وإصابات العمل</h1>
+          <h1 className="text-2xl md:text-3xl font-black text-slate-800">إدارة الحوادث وإصابات</h1>
           <p className="text-slate-500 mt-1 font-medium">لوحة تحكم وتحليلات مدير السلامة (HSE)</p>
         </div>
         
@@ -222,7 +222,7 @@ function HSEContent() {
            <h3 className={`text-3xl font-black mt-2 ${typeFilter === 'All' && statusFilter === 'All' ? 'text-white' : 'text-slate-800'}`}>{isLoading ? "..." : stats.total}</h3>
         </div>
         <div onClick={() => { setTypeFilter("Work Injury"); setStatusFilter("All"); }} className={`p-5 rounded-2xl border shadow-sm flex flex-col justify-between cursor-pointer transition-all hover:-translate-y-1 ${typeFilter === 'Work Injury' && statusFilter === 'All' ? 'bg-orange-500 border-orange-600 ring-4 ring-orange-200' : 'bg-orange-50 border-orange-100 hover:border-orange-300'}`}>
-           <div className="flex justify-between items-start"><p className={`text-xs font-bold mb-1 ${typeFilter === 'Work Injury' && statusFilter === 'All' ? 'text-orange-100' : 'text-orange-600'}`}>إصابات عمل</p><div className={`p-2 rounded-lg ${typeFilter === 'Work Injury' && statusFilter === 'All' ? 'bg-orange-600 text-white' : 'bg-orange-200/50 text-orange-700'}`}><HardHat size={18}/></div></div>
+           <div className="flex justify-between items-start"><p className={`text-xs font-bold mb-1 ${typeFilter === 'Work Injury' && statusFilter === 'All' ? 'text-orange-100' : 'text-orange-600'}`}>إصابات</p><div className={`p-2 rounded-lg ${typeFilter === 'Work Injury' && statusFilter === 'All' ? 'bg-orange-600 text-white' : 'bg-orange-200/50 text-orange-700'}`}><HardHat size={18}/></div></div>
            <h3 className={`text-3xl font-black mt-2 ${typeFilter === 'Work Injury' && statusFilter === 'All' ? 'text-white' : 'text-orange-700'}`}>{isLoading ? "..." : stats.workInjuries}</h3>
         </div>
         <div onClick={() => { setTypeFilter("First Aid"); setStatusFilter("All"); }} className={`p-5 rounded-2xl border shadow-sm flex flex-col justify-between cursor-pointer transition-all hover:-translate-y-1 ${typeFilter === 'First Aid' && statusFilter === 'All' ? 'bg-emerald-500 border-emerald-600 ring-4 ring-emerald-200' : 'bg-emerald-50 border-emerald-100 hover:border-emerald-300'}`}>

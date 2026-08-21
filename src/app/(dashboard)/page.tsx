@@ -195,7 +195,7 @@ export default function MobileFirstDashboard() {
 
           <Link href="/injuries?filter=Work Injury" className="bg-white p-4 md:p-5 rounded-[20px] shadow-sm border border-slate-100 hover:border-orange-200 hover:shadow-md active:scale-95 transition-all flex flex-col justify-between h-32 relative overflow-hidden group cursor-pointer">
             <div className="absolute -left-2 -top-2 opacity-5 text-orange-500 transform group-hover:scale-110 transition-transform"><HardHat size={80} /></div>
-            <p className="text-slate-500 font-bold text-sm group-hover:text-orange-600 transition-colors">إصابات العمل</p>
+            <p className="text-slate-500 font-bold text-sm group-hover:text-orange-600 transition-colors">إصابات</p>
             <div className="flex items-end justify-between"><h3 className="text-4xl font-black text-orange-600">{isLoading ? "..." : stats.workInjuries}</h3><div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600"><HardHat size={16}/></div></div>
           </Link>
 

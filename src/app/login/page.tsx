@@ -131,7 +131,7 @@ export default function LoginPage() {
               <span className="text-blue-400">ERP System</span>
             </h2>
             <p className="text-slate-300 text-sm md:text-lg font-medium leading-relaxed max-w-sm mx-auto md:mx-0">
-              نظام متكامل لإدارة العيادات الطبية، سجلات الموظفين، تقارير السلامة والصحة المهنية، وإصابات العمل.
+              نظام متكامل لإدارة العيادات الطبية، سجلات الموظفين، تقارير السلامة والصحة المهنية، وإصابات.
             </p>
           </div>
 
@@ -158,7 +158,7 @@ export default function LoginPage() {
               <button onClick={() => handleDemoLogin('HSE_MANAGER', 'مدير سلامة')} className="p-5 border-2 border-slate-100 hover:border-orange-500 hover:bg-orange-50 rounded-2xl text-center sm:text-right transition-all group flex flex-col items-center sm:items-start">
                 <div className="w-14 h-14 bg-orange-100 text-orange-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><HardHat size={28}/></div>
                 <h3 className="font-black text-lg text-slate-800">مدير سلامة (HSE)</h3>
-                <p className="text-xs font-bold text-slate-500 mt-2">متابعة بؤر الخطر وإصابات العمل</p>
+                <p className="text-xs font-bold text-slate-500 mt-2">متابعة بؤر الخطر وإصابات</p>
               </button>
 
               <button onClick={() => handleDemoLogin('NURSE', 'ممرض')} className="p-5 border-2 border-slate-100 hover:border-purple-500 hover:bg-purple-50 rounded-2xl text-center sm:text-right transition-all group flex flex-col items-center sm:items-start">
